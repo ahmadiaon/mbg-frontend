@@ -2,6 +2,8 @@
 
 Frontend aplikasi **Mitra Barito Group**, dibangun dengan React + Vite dan memakai template admin **deskapp** (Bootstrap 4, tema terang).
 
+> **Tujuan & kebutuhan produk**: lihat [PRD](https://github.com/ahmadiaon/mbg-backend/blob/main/PRD.md) di repo backend.
+
 ## Tech Stack
 
 - **React 19** + TypeScript
