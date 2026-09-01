@@ -1,0 +1,243 @@
+/* =============================================================
+   MBG overrides — di atas template deskapp (tema terang)
+   ============================================================= */
+
+/* --- Logo --- */
+.brand-logo img {
+  max-height: 40px;
+  width: auto;
+}
+
+/* --- Submenu accordion (toggle via React, ganti jQuery) --- */
+.sidebar-menu li > ul.submenu {
+  display: none;
+}
+.sidebar-menu li.show > ul.submenu {
+  display: block;
+}
+
+/* --- Dropdown (Bootstrap 4 .show) --- */
+.dropdown-menu.show {
+  display: block;
+}
+
+/* --- Login / auth --- */
+.login-page-wrapper {
+  min-height: 100vh;
+  background: #f5f7fb;
+}
+
+.auth-card {
+  width: 100%;
+  max-width: 420px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 0 25px rgba(0, 0, 0, 0.08);
+  padding: 32px;
+  text-align: center;
+}
+
+.auth-card h1 {
+  font-size: 1.25rem;
+  color: #1b3133;
+  margin: 8px 0 4px;
+}
+
+.auth-card .sub {
+  color: #6c757d;
+  font-size: 0.9rem;
+  margin: 0 0 16px;
+}
+
+.error {
+  color: #dc3545;
+  font-size: 0.85rem;
+  margin-top: 8px;
+}
+
+.pin-row {
+  display: flex;
+  gap: 8px;
+  justify-content: center;
+  margin: 8px 0;
+}
+
+.pin-box {
+  width: 44px;
+  height: 52px;
+  text-align: center;
+  font-size: 1.4rem;
+  font-weight: 700;
+  border: 1px solid #ced4da;
+  border-radius: 8px;
+  outline: none;
+}
+
+.pin-box:focus {
+  border-color: #1b00ff;
+}
+
+.center {
+  text-align: center;
+}
+
+.check {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: #e6f7ee;
+  color: #28a745;
+  font-size: 1.6rem;
+  font-weight: 800;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin: 0 auto 12px;
+}
+
+.wa-btn {
+  display: inline-block;
+  background: #25d366;
+  color: #fff;
+  font-weight: 600;
+  border-radius: 8px;
+  padding: 12px 16px;
+  text-decoration: none;
+  margin: 8px 0;
+}
+
+.spinner {
+  width: 32px;
+  height: 32px;
+  border: 3px solid #e9ecef;
+  border-top-color: #1b00ff;
+  border-radius: 50%;
+  margin: 0 auto 12px;
+  animation: spin 0.8s linear infinite;
+}
+
+@keyframes spin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+/* --- Sidebar scroll (ganti plugin mCustomScrollbar) --- */
+.left-side-bar .menu-block {
+  overflow-y: auto;
+  overflow-x: hidden;
+}
+
+/* --- Dashboard --- */
+.hero-accent {
+  border-left: 4px solid #1b00ff;
+}
+
+.shortcut-tile {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+  padding: 24px 10px;
+  background: #fff;
+  border-radius: 10px;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.06);
+  text-decoration: none;
+  color: #1b3133;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
+}
+
+.shortcut-tile:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.1);
+  text-decoration: none;
+  color: #1b3133;
+}
+
+.shortcut-tile-icon {
+  width: 52px;
+  height: 52px;
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.5rem;
+  color: #1b00ff;
+  background: #eef0ff;
+}
+
+.shortcut-tile-label {
+  font-size: 0.9rem;
+  font-weight: 600;
+}
+
+/* --- My Slip --- */
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.chip {
+  border: 1px solid #dee2e6;
+  background: #fff;
+  color: #495057;
+  border-radius: 999px;
+  padding: 8px 16px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.chip.active {
+  background: #1b00ff;
+  border-color: #1b00ff;
+  color: #fff;
+  font-weight: 600;
+}
+
+.slip-preview {
+  border: 1px solid #e5e5e5;
+  border-radius: 10px;
+  overflow: hidden;
+  margin-top: 20px;
+}
+
+.slip-preview-bar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 16px;
+  background: #fff;
+  border-bottom: 1px solid #e5e5e5;
+  font-weight: 600;
+}
+
+.slip-preview iframe {
+  width: 100%;
+  height: 70vh;
+  border: none;
+  display: block;
+  background: #525659;
+}
+
+.slip-canvas-wrap {
+  overflow: auto;
+  max-height: 75vh;
+  background: #f1f3f5;
+  border: 1px solid #e5e5e5;
+  border-radius: 8px;
+  padding: 12px;
+  -webkit-overflow-scrolling: touch;
+}
+
+.empty-state {
+  text-align: center;
+  color: #6c757d;
+  padding: 48px 16px;
+}
+
+.empty-state i {
+  font-size: 2.5rem;
+  display: block;
+  margin-bottom: 8px;
+}
