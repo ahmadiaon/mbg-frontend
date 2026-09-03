@@ -12,6 +12,11 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const { user, access } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
   const role = user?.role ?? 1;
+  const dynamicFeatures = access
+    ? Object.values(access.features)
+        .filter((feature) => feature.read && feature.route)
+        .sort((a, b) => a.sort - b.sort)
+    : [];
 
   function toggle(key: string) {
     setExpanded((prev) => (prev === key ? null : key));
@@ -92,6 +97,20 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                 </li>
               );
             })}
+            {dynamicFeatures.length > 0 && (
+              <>
+                <li><div className="dropdown-divider" /></li>
+                <li><div className="sidebar-small-cap">Feature Aktif</div></li>
+                {dynamicFeatures.map((feature) => (
+                  <li key={`dynamic-${feature.code}`}>
+                    <NavLink to={feature.route!} onClick={onClose} className={({ isActive }) => `dropdown-toggle no-arrow ${isActive ? 'active' : ''}`}>
+                      <span className={`micon ${feature.icon ?? 'bi bi-grid'}`} />
+                      <span className="mtext">{feature.name}</span>
+                    </NavLink>
+                  </li>
+                ))}
+              </>
+            )}
           </ul>
         </div>
       </div>

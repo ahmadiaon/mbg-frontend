@@ -370,6 +370,11 @@ export interface EmploymentStatusItem {
 export const authorityAdminApi = {
   roles: () => api<RoleLevelItem[]>('/access/admin/roles'),
   features: () => api<FeatureDefinitionItem[]>('/access/admin/features'),
+  createFeature: (body: Record<string, unknown>) =>
+    api<FeatureDefinitionItem>('/access/admin/features', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
   users: () => api<LoginUser[]>('/access/admin/users'),
   employmentStatuses: () => api<EmploymentStatusItem[]>('/access/admin/employment-statuses'),
   updateFeature: (code: string, body: Record<string, unknown>) =>

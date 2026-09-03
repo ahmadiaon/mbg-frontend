@@ -40,6 +40,7 @@ export default function Authority() {
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [statusForm, setStatusForm] = useState({ userId: '', roleLevel: '2', startDate: '', endDate: '' });
+  const [featureForm, setFeatureForm] = useState({ code: '', name: '', route: '', icon: 'bi-grid', menuGroup: '' });
 
   async function load() {
     setLoading(true);
@@ -123,6 +124,27 @@ export default function Authority() {
     }
   }
 
+  async function createFeature() {
+    if (!featureForm.code.trim() || !featureForm.name.trim()) {
+      setError('Code dan nama feature wajib diisi');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      const created = await authorityAdminApi.createFeature(featureForm);
+      setSelectedFeature(created.code);
+      setFeatureForm({ code: '', name: '', route: '', icon: 'bi-grid', menuGroup: '' });
+      setMessage(`Feature ${created.code} berhasil dibuat. Buat policy agar dapat dipakai user.`);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal membuat feature');
+    } finally {
+      setSaving(false);
+    }
+  }
+
   return (
     <div>
       <div className="title pb-20">
@@ -145,6 +167,16 @@ export default function Authority() {
 
             {tab === 'policy' && (
               <div className="pd-20">
+                <div className="alert alert-light border mb-20">
+                  <div className="font-14 weight-600 mb-2">Daftarkan Feature Baru</div>
+                  <div className="row">
+                    <div className="col-md-2 mb-2"><input className="form-control" placeholder="CODE" value={featureForm.code} onChange={(e) => setFeatureForm((v) => ({ ...v, code: e.target.value }))} /></div>
+                    <div className="col-md-3 mb-2"><input className="form-control" placeholder="Nama feature" value={featureForm.name} onChange={(e) => setFeatureForm((v) => ({ ...v, name: e.target.value }))} /></div>
+                    <div className="col-md-3 mb-2"><input className="form-control" placeholder="Route React" value={featureForm.route} onChange={(e) => setFeatureForm((v) => ({ ...v, route: e.target.value }))} /></div>
+                    <div className="col-md-2 mb-2"><input className="form-control" placeholder="Icon" value={featureForm.icon} onChange={(e) => setFeatureForm((v) => ({ ...v, icon: e.target.value }))} /></div>
+                    <div className="col-md-2 mb-2"><button className="btn btn-outline-primary btn-block" disabled={saving} onClick={createFeature}>Daftarkan</button></div>
+                  </div>
+                </div>
                 <div className="row">
                   <div className="col-md-5 mb-20">
                     <label>Feature</label>

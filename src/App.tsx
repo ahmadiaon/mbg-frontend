@@ -10,6 +10,7 @@ import MbgLink from './pages/MbgLink';
 import DatabaseForm from './pages/DatabaseForm';
 import DatabaseData from './pages/DatabaseData';
 import Authority from './pages/Authority';
+import DynamicFeature from './pages/DynamicFeature';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { token } = useAuth();
@@ -34,6 +35,7 @@ export default function App() {
         <Route path="/database/form" element={<DatabaseForm />} />
         <Route path="/database/data" element={<DatabaseData />} />
         <Route path="/authority" element={<Authority />} />
+        <Route path="*" element={<DynamicFeature />} />
       </Route>
     </Routes>
   );
