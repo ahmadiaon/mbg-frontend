@@ -56,6 +56,7 @@ export const MENU: MenuItem[] = [
       { label: 'Data', path: '/database/data' },
       { label: 'User', path: '/database/user' },
       { label: 'Menu', path: '/database/menu' },
+      { label: 'Otoritas', path: '/authority' },
     ],
   },
 

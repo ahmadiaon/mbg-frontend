@@ -308,3 +308,83 @@ export const accessApi = {
       { method: 'POST' },
     ),
 };
+
+export interface RoleLevelItem {
+  id: number;
+  level: number;
+  code: string;
+  name: string;
+  description: string | null;
+  active: boolean;
+}
+
+export interface FeaturePolicyItem {
+  id: number;
+  roleLevelId: number;
+  employmentStatusCode: string;
+  canRead: boolean;
+  canWrite: boolean;
+  canEdit: boolean;
+  canDelete: boolean;
+  canImport: boolean;
+  canExport: boolean;
+  canSubmit: boolean;
+  canApprove: boolean;
+  canReject: boolean;
+  canViewHistory: boolean;
+  canRestore: boolean;
+  scopeType: string;
+  roleLevel: RoleLevelItem;
+}
+
+export interface FeatureDefinitionItem {
+  id: number;
+  code: string;
+  name: string;
+  description: string | null;
+  route: string | null;
+  icon: string | null;
+  menuGroup: string | null;
+  sort: number;
+  active: boolean;
+  isSystem: boolean;
+  policies: FeaturePolicyItem[];
+}
+
+export interface EmploymentStatusItem {
+  id: number;
+  employeeNrp: string;
+  statusCode: string;
+  startDate: string;
+  endDate: string | null;
+  isPrimary: boolean;
+  user: { id: number; nrp: string; name: string };
+  roleLevel: RoleLevelItem;
+  company: { code: string; name: string } | null;
+  project: { code: string; name: string } | null;
+  department: { code: string; name: string } | null;
+  division: { code: string; name: string } | null;
+  position: { code: string; name: string } | null;
+}
+
+export const authorityAdminApi = {
+  roles: () => api<RoleLevelItem[]>('/access/admin/roles'),
+  features: () => api<FeatureDefinitionItem[]>('/access/admin/features'),
+  users: () => api<LoginUser[]>('/access/admin/users'),
+  employmentStatuses: () => api<EmploymentStatusItem[]>('/access/admin/employment-statuses'),
+  updateFeature: (code: string, body: Record<string, unknown>) =>
+    api<FeatureDefinitionItem>(`/access/admin/features/${encodeURIComponent(code)}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  upsertPolicy: (code: string, body: Record<string, unknown>) =>
+    api<FeaturePolicyItem>(`/access/admin/features/${encodeURIComponent(code)}/policy`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  createEmploymentStatus: (body: Record<string, unknown>) =>
+    api<EmploymentStatusItem>('/access/admin/employment-statuses', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+};
