@@ -258,3 +258,53 @@ export const eavApi = {
   importXlsx: (file: File) =>
     uploadFile<{ imported: number }>('/eav/import', file),
 };
+
+// Otoritas dinamis: role + status kerja + feature policy.
+export interface EffectiveFeatureAccess {
+  code: string;
+  name: string;
+  route: string | null;
+  icon: string | null;
+  menuGroup: string | null;
+  sort: number;
+  read: boolean;
+  write: boolean;
+  edit: boolean;
+  delete: boolean;
+  import: boolean;
+  export: boolean;
+  submit: boolean;
+  approve: boolean;
+  reject: boolean;
+  history: boolean;
+  restore: boolean;
+  scopes: string[];
+}
+
+export interface AccessBootstrap {
+  user: LoginUser;
+  roleLevels: number[];
+  statuses: Array<{
+    id: number;
+    statusCode: string;
+    roleLevel: number;
+    position: string | null;
+    company: string | null;
+    project: string | null;
+    department: string | null;
+    division: string | null;
+    startDate: string;
+    endDate: string | null;
+  }>;
+  features: Record<string, EffectiveFeatureAccess>;
+}
+
+export const accessApi = {
+  bootstrap: () => api<AccessBootstrap>('/access/bootstrap'),
+  me: () => api<{ user: LoginUser; statuses: unknown[]; levels: number[] }>('/access/me'),
+  check: (feature: string, action: string) =>
+    api<{ feature: string; action: string; allowed: boolean }>(
+      `/access/check/${encodeURIComponent(feature)}/${encodeURIComponent(action)}`,
+      { method: 'POST' },
+    ),
+};

@@ -9,7 +9,7 @@ interface SidebarProps {
 }
 
 export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
-  const { user } = useAuth();
+  const { user, access } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
   const role = user?.role ?? 1;
 
@@ -34,6 +34,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
           <ul id="accordion-menu">
             {MENU.map((item, index) => {
               if (item.minRole && role < item.minRole) return null;
+              if (item.featureCode && !access?.features[item.featureCode]?.read) return null;
 
               if (item.cap) {
                 return (

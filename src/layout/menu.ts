@@ -4,6 +4,7 @@ export interface MenuItem {
   path?: string; // untuk item tanpa submenu
   children?: { label: string; path: string }[]; // untuk item dengan submenu
   minRole?: number; // tampil jika role >= minRole
+  featureCode?: string; // tampil jika backend memberi akses read
   cap?: boolean; // render sebagai header section (sidebar-small-cap)
 }
 
@@ -23,21 +24,21 @@ export const MENU: MenuItem[] = [
     ],
   },
 
-  { label: 'Payroll', cap: true, minRole: 2 },
-  { label: 'Slip Gaji', icon: 'bi bi-journal-bookmark', minRole: 2, path: '/payroll/slip' },
+  { label: 'Payroll', cap: true, featureCode: 'PAYROLL' },
+  { label: 'Slip Gaji', icon: 'bi bi-journal-bookmark', featureCode: 'PAYROLL', path: '/payroll/slip' },
 
   { label: 'Fitur', cap: true },
   { label: 'Struktur Organisasi', icon: 'bi bi-diagram-3', path: '/struktur-organisasi' },
-  { label: 'Water Level', icon: 'bi bi-droplet', path: '/feature/water-level' },
+  { label: 'Water Level', icon: 'bi bi-droplet', featureCode: 'WATER-LEVEL', path: '/feature/water-level' },
   { label: 'MBG-Link', icon: 'bi bi-link-45deg', path: '/mbg-link' },
-  { label: 'Recruitment', icon: 'bi bi-box-seam', minRole: 2, path: '/manage/recruitment' },
-  { label: 'File Manager', icon: 'bi bi-folder', minRole: 2, path: '/feature/file-manager' },
+  { label: 'Recruitment', icon: 'bi bi-box-seam', featureCode: 'RECRUITMENT', path: '/manage/recruitment' },
+  { label: 'File Manager', icon: 'bi bi-folder', featureCode: 'FILE-MANAGER', path: '/feature/file-manager' },
 
   { label: 'Hauling', cap: true, minRole: 5 },
   {
     label: 'Absensi Hauling',
     icon: 'bi bi-truck',
-    minRole: 5,
+    featureCode: 'DATABASE',
     children: [
       { label: 'Rute', path: '/hauling/time-cek' },
       { label: 'Izin', path: '/manage/izin' },
