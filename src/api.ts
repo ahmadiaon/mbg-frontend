@@ -268,6 +268,21 @@ export const eavApi = {
     api<unknown>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/correction`, { method: 'POST', body: JSON.stringify({ values }) }),
   historicalUpdate: (code: string, recordCode: string, changeTypeCode: string, values: Record<string, string>) =>
     api<{ request: { id: number; status: string } }>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/historical-update`, { method: 'POST', body: JSON.stringify({ changeTypeCode, values }) }),
+  uploadAsset: (file: File, folder: string, filename?: string) => {
+    const body = new FormData();
+    body.append('file', file);
+    body.append('folder', folder);
+    if (filename) body.append('filename', filename);
+    const token = getToken();
+    return fetch(`${BASE}/eav/assets/upload`, {
+      method: 'POST',
+      body,
+      headers: token ? { Authorization: `Bearer ${token}` } : {},
+    }).then(async (res) => {
+      if (!res.ok) throw new Error(`Gagal upload asset (HTTP ${res.status})`);
+      return (await res.json()) as { success: boolean; url: string };
+    });
+  },
 };
 
 // Otoritas dinamis: role + status kerja + feature policy.
