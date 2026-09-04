@@ -24,6 +24,13 @@ export default function DatabaseData() {
   const [sourceOptions, setSourceOptions] = useState<Record<string, EavRecord[]>>({});
   const [formValues, setFormValues] = useState<Record<string, string>>({});
   const [editRecordCode, setEditRecordCode] = useState<string | null>(null);
+  const [actionRecord, setActionRecord] = useState<EavRecord | null>(null);
+  const [actionMode, setActionMode] = useState<'show' | 'history' | 'update' | null>(null);
+  const [changeTypes, setChangeTypes] = useState<Array<{ code: string; type: string; description: string }>>([]);
+  const [changeTypeCode, setChangeTypeCode] = useState('');
+  const [historicalValues, setHistoricalValues] = useState<Record<string, string>>({});
+  const [historyRows, setHistoryRows] = useState<unknown[]>([]);
+  const [familyData, setFamilyData] = useState<Record<string, unknown> | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
@@ -107,6 +114,46 @@ export default function DatabaseData() {
   function editRecord(r: EavRecord) {
     setFormValues({ ...r.values });
     setEditRecordCode(r.recordCode);
+  }
+
+  async function showRecord(r: EavRecord) {
+    setActionRecord(r);
+    setActionMode('show');
+    setFamilyData(await eavApi.family(selected, r.recordCode).catch(() => null));
+  }
+
+  async function updateRecord(r: EavRecord) {
+    setActionRecord(r);
+    setHistoricalValues({ ...r.values });
+    setChangeTypeCode('');
+    setActionMode('update');
+    setFamilyData(await eavApi.family(selected, r.recordCode).catch(() => null));
+    const types = await eavApi.changeTypes(selected).catch(() => []);
+    setChangeTypes(types);
+  }
+
+  async function showHistory(r: EavRecord) {
+    setActionRecord(r);
+    setActionMode('history');
+    setHistoryRows(await eavApi.history(selected, r.recordCode).catch(() => []));
+  }
+
+  async function submitHistoricalUpdate() {
+    if (!actionRecord || !changeTypeCode) {
+      setError('Jenis perubahan wajib dipilih');
+      return;
+    }
+    setBusy(true);
+    try {
+      await eavApi.historicalUpdate(selected, actionRecord.recordCode, changeTypeCode, historicalValues);
+      setActionMode(null);
+      setActionRecord(null);
+      await selectTable(selected);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal membuat historical update');
+    } finally {
+      setBusy(false);
+    }
   }
 
   function setValue(fieldCode: string, value: string) {
@@ -387,11 +434,23 @@ export default function DatabaseData() {
                       const rec = records.find((r) => r.recordCode === row.__recordCode);
                       return (
                         <>
+                          <button className="btn btn-sm btn-outline-secondary mr-1" title="Lihat data aktif" onClick={() => rec && showRecord(rec)}>
+                            <i className="bi bi-eye"></i>
+                          </button>
+                          <button className="btn btn-sm btn-outline-dark mr-1" title="Lihat parent dan child terkait" onClick={() => rec && showRecord(rec)}>
+                            <i className="bi bi-diagram-3"></i>
+                          </button>
                           <button
                             className="btn btn-sm btn-outline-primary mr-1"
                             onClick={() => rec && editRecord(rec)}
                           >
                             <i className="bi bi-pencil"></i>
+                          </button>
+                          <button className="btn btn-sm btn-outline-warning mr-1" title="Buat perubahan historical" onClick={() => rec && updateRecord(rec)}>
+                            <i className="bi bi-arrow-repeat"></i>
+                          </button>
+                          <button className="btn btn-sm btn-outline-info mr-1" title="Lihat histori" onClick={() => rec && showHistory(rec)}>
+                            <i className="bi bi-clock-history"></i>
                           </button>
                           <button
                             className="btn btn-sm btn-outline-danger"
@@ -439,6 +498,39 @@ export default function DatabaseData() {
           </div>
         </div>
       </div>
+      {actionMode && actionRecord && (
+        <div className="modal d-block" role="dialog" aria-modal="true" style={{ background: 'rgba(0,0,0,.45)' }}>
+          <div className="modal-dialog modal-lg modal-dialog-scrollable">
+            <div className="modal-content">
+              <div className="modal-header">
+                <h5 className="modal-title">{actionMode === 'show' ? 'Data Aktif' : actionMode === 'update' ? 'Update Historical' : 'Riwayat Data'} — {actionRecord.recordCode}</h5>
+                <button className="close" onClick={() => setActionMode(null)}><span>&times;</span></button>
+              </div>
+              <div className="modal-body">
+                {actionMode === 'show' && selectedFields.filter((f) => f.type.toUpperCase() !== 'HIDDEN').map((field) => (
+                  <div className="row border-bottom py-2" key={field.code}><div className="col-md-5 font-14 weight-600">{field.name}</div><div className="col-md-7">{renderFieldValue(field, actionRecord.values[field.code], { record: actionRecord.values, sourceOptions, fieldShows })}</div></div>
+                ))}
+                {actionMode === 'show' && familyData && (
+                  <details className="mt-3" open>
+                    <summary className="font-14 weight-600">Data parent-child terkait</summary>
+                    <pre className="bg-light p-2 mt-2" style={{ maxHeight: 260, overflow: 'auto' }}>{JSON.stringify(familyData, null, 2)}</pre>
+                  </details>
+                )}
+                {actionMode === 'update' && (
+                  <>
+                    <div className="alert alert-info">Data kiri adalah data aktif. Ubah hanya data baru di kolom kanan.</div>
+                    <div className="form-group"><label>Jenis Perubahan</label><select className="form-control" value={changeTypeCode} onChange={(e) => setChangeTypeCode(e.target.value)}><option value="">-- pilih jenis perubahan --</option>{changeTypes.map((type) => <option key={type.code} value={type.code}>{type.type} — {type.description}</option>)}</select></div>
+                    <div className="row font-12 font-weight-bold border-bottom pb-2"><div className="col-md-6">Data Sebelumnya</div><div className="col-md-6">Data Perubahan</div></div>
+                    {selectedFields.filter((f) => f.type.toUpperCase() !== 'HIDDEN').map((field) => <div className="row border-bottom py-2" key={field.code}><div className="col-md-6">{renderFieldValue(field, actionRecord.values[field.code], { record: actionRecord.values, sourceOptions, fieldShows })}</div><div className="col-md-6"><label className="font-12">{field.name}</label><input className="form-control form-control-sm" value={historicalValues[field.code] ?? ''} onChange={(e) => setHistoricalValues((values) => ({ ...values, [field.code]: e.target.value }))} /></div></div>)}
+                  </>
+                )}
+                {actionMode === 'history' && (historyRows.length ? historyRows.map((item, index) => <pre className="bg-light p-2" key={index}>{JSON.stringify(item, null, 2)}</pre>) : <p className="text-muted">Belum ada histori.</p>)}
+              </div>
+              <div className="modal-footer">{actionMode === 'update' && <button className="btn btn-warning" disabled={busy} onClick={submitHistoricalUpdate}>{busy ? 'Mengirim...' : 'Simpan Historical Update'}</button>}<button className="btn btn-secondary" onClick={() => setActionMode(null)}>Tutup</button></div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

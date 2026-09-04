@@ -46,7 +46,7 @@ export function computeGabungan(
   fieldShows: FieldShow[],
 ): string {
   const shows = fieldShows
-    .filter((fs) => fs.fieldCode === field.code)
+    .filter((fs) => fs.fieldCode === field.code && (!fs.entityCode || fs.entityCode === field.fullCode.split('-')[0]))
     .sort((a, b) => a.sort - b.sort);
   if (shows.length === 0) return record?.[field.code] ?? '';
   let result = '';

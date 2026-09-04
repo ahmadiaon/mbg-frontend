@@ -166,6 +166,7 @@ export interface FieldShow {
   id: number;
   entityCode: string;
   fieldCode: string;
+  tableShowCode?: string | null;
   fieldShowCode: string;
   splitBy: string | null;
   sort: number;
@@ -201,7 +202,7 @@ export interface CreateFieldBody {
   visibility?: string;
   sourceEntityCode?: string;
   sourceFieldCode?: string;
-  gabungan?: { fieldShowCode: string; splitBy?: string; sort?: number }[];
+  gabungan?: { fieldShowCode: string; tableShowCode?: string; splitBy?: string; sort?: number }[];
 }
 
 export const eavApi = {
@@ -257,6 +258,16 @@ export const eavApi = {
     downloadFile(`/eav/entities/${encodeURIComponent(code)}/export`, `${code}.xlsx`),
   importXlsx: (file: File) =>
     uploadFile<{ imported: number }>('/eav/import', file),
+  family: (code: string, recordCode: string) =>
+    api<Record<string, unknown>>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/family`),
+  history: (code: string, recordCode: string) =>
+    api<unknown[]>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/history`),
+  changeTypes: (tableCode: string) =>
+    api<Array<{ code: string; table: string; type: string; description: string }>>(`/eav/change-types/${encodeURIComponent(tableCode)}`),
+  correction: (code: string, recordCode: string, values: Record<string, string>) =>
+    api<unknown>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/correction`, { method: 'POST', body: JSON.stringify({ values }) }),
+  historicalUpdate: (code: string, recordCode: string, changeTypeCode: string, values: Record<string, string>) =>
+    api<{ request: { id: number; status: string } }>(`/eav/entities/${encodeURIComponent(code)}/records/${encodeURIComponent(recordCode)}/historical-update`, { method: 'POST', body: JSON.stringify({ changeTypeCode, values }) }),
 };
 
 // Otoritas dinamis: role + status kerja + feature policy.

@@ -10,6 +10,7 @@ import { slugify } from '../profile';
 import DataTable from '../components/DataTable';
 
 interface GabunganRow {
+  tableShowCode: string;
   fieldShowCode: string;
   splitBy: string;
 }
@@ -149,22 +150,6 @@ export default function DatabaseForm() {
     return Object.values(entities[sourceEntity]?.fields ?? {});
   }
 
-  function gabunganOptions(): { code: string; label: string }[] {
-    const opts: { code: string; label: string }[] = [];
-    if (editCode && entities[editCode]) {
-      for (const [code, f] of Object.entries(entities[editCode].fields ?? {})) {
-        opts.push({ code, label: f.name || code });
-      }
-    }
-    for (const f of fields) {
-      if (f.name.trim()) {
-        const c = slugify(f.name);
-        if (!opts.some((o) => o.code === c)) opts.push({ code: c, label: f.name.trim() });
-      }
-    }
-    return opts;
-  }
-
   function dataShow(code: string) {
     const e = entities[code];
     if (!e) return;
@@ -183,7 +168,7 @@ export default function DatabaseForm() {
         const gabungan = fieldShows
           .filter((fs) => fs.entityCode === code && fs.fieldCode === f.code)
           .sort((a, b) => a.sort - b.sort)
-          .map((fs) => ({ fieldShowCode: fs.fieldShowCode, splitBy: fs.splitBy ?? '' }));
+          .map((fs) => ({ tableShowCode: fs.tableShowCode ?? code, fieldShowCode: fs.fieldShowCode, splitBy: fs.splitBy ?? '' }));
         return {
           name: f.name,
           type: (f.type ?? 'TEXT').toUpperCase(),
@@ -247,7 +232,7 @@ export default function DatabaseForm() {
             f.type === 'GABUNGAN'
               ? f.gabungan
                   .filter((g) => g.fieldShowCode)
-                  .map((g, gi) => ({ fieldShowCode: g.fieldShowCode, splitBy: g.splitBy, sort: gi }))
+                  .map((g, gi) => ({ tableShowCode: g.tableShowCode || code, fieldShowCode: g.fieldShowCode, splitBy: g.splitBy, sort: gi }))
               : undefined,
         };
         if (existingFieldCodes.has(fieldCode)) {
@@ -553,7 +538,13 @@ export default function DatabaseForm() {
                       <label className="font-12 text-secondary">Gabungan Field (concat)</label>
                       {f.gabungan.map((g, gi) => (
                         <div className="row mb-1" key={gi}>
-                          <div className="col-md-8">
+                          <div className="col-md-4">
+                            <select className="form-control" value={g.tableShowCode || editCode || ''} onChange={(e) => patchField(i, { gabungan: f.gabungan.map((x, xi) => xi === gi ? { ...x, tableShowCode: e.target.value, fieldShowCode: '' } : x) })}>
+                              <option value="">Tabel saat ini</option>
+                              {tableList.map((table) => <option key={table.code} value={table.code}>{table.name}</option>)}
+                            </select>
+                          </div>
+                          <div className="col-md-4">
                             <select
                               className="form-control"
                               value={g.fieldShowCode}
@@ -566,11 +557,7 @@ export default function DatabaseForm() {
                               }
                             >
                               <option value="">Pilih field</option>
-                              {gabunganOptions().map((o) => (
-                                <option key={o.code} value={o.code}>
-                                  {o.label}
-                                </option>
-                              ))}
+                              {Object.values(entities[g.tableShowCode || editCode || '']?.fields ?? {}).map((field) => <option key={field.code} value={field.code}>{field.name}</option>)}
                             </select>
                           </div>
                           <div className="col-md-3">
@@ -605,7 +592,7 @@ export default function DatabaseForm() {
                         className="btn btn-sm btn-outline-primary"
                         onClick={() =>
                           patchField(i, {
-                            gabungan: [...f.gabungan, { fieldShowCode: '', splitBy: '|' }],
+                            gabungan: [...f.gabungan, { tableShowCode: editCode || '', fieldShowCode: '', splitBy: '|' }],
                           })
                         }
                       >
