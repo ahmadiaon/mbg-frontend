@@ -60,7 +60,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                       onClick={() => toggle(key)}
                     >
                       <span className={`micon ${item.icon}`}></span>
-                      <span className="mtext">{item.label}</span>
+                      <span className="mtext">{item.label}{item.implemented === false && <span className="badge badge-warning ml-1" title="Fitur belum dibuat">!</span>}</span>
                     </a>
                     <ul className="submenu">
                       {item.children.map((child) => (
@@ -72,7 +72,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                               isActive ? 'active' : ''
                             }
                           >
-                            {child.label}
+                            {child.label}{child.implemented === false && <span className="badge badge-warning ml-1" title="Fitur belum dibuat">!</span>}
                           </NavLink>
                         </li>
                       ))}
@@ -92,7 +92,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                     }
                   >
                     <span className={`micon ${item.icon}`}></span>
-                    <span className="mtext">{item.label}</span>
+                      <span className="mtext">{item.label}{item.implemented === false && <span className="badge badge-warning ml-1" title="Fitur belum dibuat">!</span>}</span>
                   </NavLink>
                 </li>
               );
