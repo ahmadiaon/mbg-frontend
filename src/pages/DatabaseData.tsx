@@ -12,7 +12,8 @@ import { slugify } from '../profile';
 import { useAuth } from '../auth';
 import { useEav } from '../context/EavContext';
 import DataTable from '../components/DataTable';
-import { renderFieldValue } from '../eavRender';
+import { renderFieldValue, isEmployeeField } from '../eavRender';
+import EmployeeCard from '../components/EmployeeCard';
 
 type FlatRow = { __recordCode: string; __recordUuid: string } & Record<string, string>;
 
@@ -94,24 +95,31 @@ export default function DatabaseData() {
       setApprovalConfig([]);
     }
 
-    const dariFields = Object.values(entity.fields ?? {}).filter((f) =>
+    const allFields = Object.values(entity.fields ?? {});
+    const dariFields = allFields.filter((f) =>
       ['DARI-TABEL', 'INPUT-AUTOCOMPLITE', 'REFERENCE'].includes(
         (f.type ?? '').toUpperCase(),
       ),
     );
+    const hasEmployee = allFields.some((f) => isEmployeeField(f));
 
     const [recs, srcMap] = await Promise.all([
       eavApi.records(code).catch(() => [] as EavRecord[]),
       (async () => {
         const map: Record<string, EavRecord[]> = {};
-        await Promise.all(
-          dariFields.map(async (f) => {
+        await Promise.all([
+          ...dariFields.map(async (f) => {
             const src = f.data_source?.entitySource;
             if (src && !map[src]) {
               map[src] = await fetchMasterRecords(src);
             }
           }),
-        );
+          (async () => {
+            if (hasEmployee && !map['KARYAWAN']) {
+              map['KARYAWAN'] = await fetchMasterRecords('KARYAWAN');
+            }
+          })(),
+        ]);
         return map;
       })(),
     ]);
@@ -357,6 +365,48 @@ export default function DatabaseData() {
           value={val}
           onChange={(e) => setValue(f.code, e.target.value)}
         />
+      );
+    }
+
+    if (isEmployeeField(f)) {
+      const empList = sourceOptions['KARYAWAN'] ?? [];
+      const selectedEmp = empList.find(
+        (r) => r.recordCode === val || r.values?.['NRP'] === val,
+      );
+      return (
+        <div>
+          {empList.length > 0 ? (
+            <select
+              className="form-control"
+              value={val}
+              onChange={(e) => setValue(f.code, e.target.value)}
+            >
+              <option value="">-- Pilih {f.name} --</option>
+              {empList.map((emp) => {
+                const nama = emp.values['NAMA-KARYAWAN'] || emp.values['FULL-NAME'] || emp.recordCode;
+                const jabatan = emp.values['JABATAN'] ? ` (${emp.values['JABATAN'].replace(/-/g, ' ')})` : '';
+                return (
+                  <option key={emp.recordCode} value={emp.recordCode}>
+                    {emp.recordCode} — {nama} {jabatan}
+                  </option>
+                );
+              })}
+            </select>
+          ) : (
+            <input
+              type="text"
+              className="form-control"
+              placeholder={`Masukkan ${f.name} (contoh: MBLE-0422003)`}
+              value={val}
+              onChange={(e) => setValue(f.code, e.target.value)}
+            />
+          )}
+          {val && (
+            <div className="mt-2">
+              <EmployeeCard nrp={val} data={selectedEmp} mode="full" />
+            </div>
+          )}
+        </div>
       );
     }
 

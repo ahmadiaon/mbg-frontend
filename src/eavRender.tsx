@@ -64,6 +64,25 @@ interface RenderCtx {
   fieldShows?: FieldShow[];
 }
 
+import EmployeeCard from './components/EmployeeCard';
+
+export function isEmployeeField(field: BuilderField): boolean {
+  const type = (field.type ?? '').toUpperCase();
+  const code = (field.code ?? '').toUpperCase();
+  const name = (field.name ?? '').toUpperCase();
+  const src = (field.data_source?.entitySource ?? '').toUpperCase();
+
+  return (
+    type === 'NRP' ||
+    code === 'NRP' ||
+    name === 'NRP' ||
+    name.includes('KARYAWAN') ||
+    src === 'KARYAWAN' ||
+    src === 'IDENTITAS-KARYAWAN' ||
+    src === 'STATUS-KERJA-KARYAWAN'
+  );
+}
+
 // Render nilai sesuai type data (untuk tampilan tabel / detail).
 export function renderFieldValue(
   field: BuilderField,
@@ -71,6 +90,16 @@ export function renderFieldValue(
   ctx: RenderCtx = {},
 ): ReactNode {
   const type = (field.type ?? 'TEXT').toUpperCase();
+
+  // Jika field ini adalah NRP atau referensi Karyawan, tampilkan kartu karyawan lengkap (foto, nama, jabatan, status kerja)
+  if (isEmployeeField(field) && value) {
+    const empRecords = ctx.sourceOptions?.['KARYAWAN'] ?? [];
+    const empRecord = empRecords.find(
+      (r) => r.recordCode === value || r.values?.['NRP'] === value || r.values?.['nik_employee'] === value,
+    );
+    return <EmployeeCard nrp={value} data={empRecord} mode="chip" />;
+  }
+
   switch (type) {
     case 'HIDDEN':
       return null;
