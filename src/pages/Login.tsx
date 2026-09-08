@@ -5,264 +5,6 @@ import { authApi, type NeedVerification } from '../api';
 
 type Step = 'nrp' | 'credential' | 'wa';
 
-const styles = {
-  wrapper: {
-    minHeight: '100vh',
-    display: 'flex',
-    background: 'linear-gradient(135deg, #0f172a 0%, #1e3a8a 50%, #1d4ed8 100%)',
-    fontFamily: "'Inter', 'Segoe UI', system-ui, -apple-system, sans-serif",
-  } as React.CSSProperties,
-  container: {
-    display: 'flex',
-    width: '100%',
-    maxWidth: '1100px',
-    minHeight: '620px',
-    margin: 'auto',
-    borderRadius: '24px',
-    overflow: 'hidden',
-    boxShadow: '0 25px 60px rgba(0,0,0,0.3)',
-  } as React.CSSProperties,
-  leftPanel: {
-    flex: '1 1 50%',
-    background: 'linear-gradient(160deg, #1e3a8a 0%, #2563eb 60%, #3b82f6 100%)',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: '60px 48px',
-    position: 'relative' as const,
-    overflow: 'hidden',
-  } as React.CSSProperties,
-  leftOverlay: {
-    position: 'absolute' as const,
-    inset: 0,
-    background: 'radial-gradient(circle at 30% 70%, rgba(59,130,246,0.3) 0%, transparent 60%)',
-    pointerEvents: 'none' as const,
-  } as React.CSSProperties,
-  leftContent: {
-    position: 'relative' as const,
-    zIndex: 1,
-    textAlign: 'center' as const,
-    color: '#fff',
-  } as React.CSSProperties,
-  leftLogo: {
-    width: '120px',
-    height: '120px',
-    borderRadius: '50%',
-    objectFit: 'contain' as const,
-    background: 'rgba(255,255,255,0.15)',
-    padding: '10px',
-    marginBottom: '28px',
-    backdropFilter: 'blur(10px)',
-    border: '2px solid rgba(255,255,255,0.2)',
-  } as React.CSSProperties,
-  leftTitle: {
-    fontSize: '28px',
-    fontWeight: 800,
-    letterSpacing: '-0.5px',
-    marginBottom: '8px',
-    lineHeight: 1.2,
-  } as React.CSSProperties,
-  leftSubtitle: {
-    fontSize: '15px',
-    opacity: 0.8,
-    fontWeight: 400,
-    marginBottom: '36px',
-    lineHeight: 1.6,
-  } as React.CSSProperties,
-  features: {
-    display: 'flex',
-    flexDirection: 'column' as const,
-    gap: '14px',
-    textAlign: 'left' as const,
-    width: '100%',
-    maxWidth: '300px',
-  } as React.CSSProperties,
-  featureItem: {
-    display: 'flex',
-    alignItems: 'center',
-    gap: '12px',
-    fontSize: '14px',
-    opacity: 0.9,
-    padding: '10px 14px',
-    borderRadius: '10px',
-    background: 'rgba(255,255,255,0.08)',
-    backdropFilter: 'blur(4px)',
-  } as React.CSSProperties,
-  featureIcon: {
-    fontSize: '18px',
-    flexShrink: 0,
-  } as React.CSSProperties,
-  rightPanel: {
-    flex: '1 1 50%',
-    background: '#fff',
-    display: 'flex',
-    flexDirection: 'column' as const,
-    justifyContent: 'center',
-    padding: '60px 48px',
-  } as React.CSSProperties,
-  formLogo: {
-    width: '80px',
-    height: '80px',
-    borderRadius: '50%',
-    objectFit: 'contain' as const,
-    margin: '0 auto 20px',
-    display: 'block',
-    boxShadow: '0 4px 20px rgba(30,58,138,0.15)',
-  } as React.CSSProperties,
-  formTitle: {
-    fontSize: '24px',
-    fontWeight: 700,
-    color: '#1e293b',
-    textAlign: 'center' as const,
-    marginBottom: '6px',
-  } as React.CSSProperties,
-  formSubtitle: {
-    fontSize: '14px',
-    color: '#94a3b8',
-    textAlign: 'center' as const,
-    marginBottom: '32px',
-  } as React.CSSProperties,
-  inputLabel: {
-    fontSize: '13px',
-    fontWeight: 600,
-    color: '#475569',
-    marginBottom: '6px',
-    display: 'block',
-  } as React.CSSProperties,
-  inputGroup: {
-    position: 'relative' as const,
-    marginBottom: '20px',
-  } as React.CSSProperties,
-  input: {
-    width: '100%',
-    padding: '14px 16px 14px 44px',
-    borderRadius: '12px',
-    border: '2px solid #e2e8f0',
-    fontSize: '15px',
-    color: '#1e293b',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-    outline: 'none',
-    background: '#f8fafc',
-    boxSizing: 'border-box' as const,
-  } as React.CSSProperties,
-  inputIcon: {
-    position: 'absolute' as const,
-    left: '14px',
-    top: '50%',
-    transform: 'translateY(-50%)',
-    fontSize: '18px',
-    color: '#94a3b8',
-    pointerEvents: 'none' as const,
-  } as React.CSSProperties,
-  btn: {
-    width: '100%',
-    padding: '14px',
-    borderRadius: '12px',
-    border: 'none',
-    fontSize: '15px',
-    fontWeight: 700,
-    color: '#fff',
-    background: 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
-    cursor: 'pointer',
-    transition: 'transform 0.15s, box-shadow 0.2s',
-    boxShadow: '0 4px 14px rgba(37,99,235,0.4)',
-    marginTop: '8px',
-    letterSpacing: '0.3px',
-  } as React.CSSProperties,
-  btnDisabled: {
-    opacity: 0.6,
-    cursor: 'not-allowed',
-    transform: 'none',
-  } as React.CSSProperties,
-  linkBtn: {
-    background: 'none',
-    border: 'none',
-    color: '#2563eb',
-    fontSize: '13px',
-    fontWeight: 600,
-    cursor: 'pointer',
-    padding: '8px 0',
-    marginTop: '8px',
-    display: 'block',
-    width: '100%',
-    textAlign: 'center' as const,
-  } as React.CSSProperties,
-  error: {
-    background: '#fef2f2',
-    color: '#dc2626',
-    fontSize: '13px',
-    padding: '10px 14px',
-    borderRadius: '10px',
-    marginBottom: '16px',
-    border: '1px solid #fecaca',
-    textAlign: 'center' as const,
-  } as React.CSSProperties,
-  pinRow: {
-    display: 'flex',
-    gap: '10px',
-    justifyContent: 'center',
-    marginBottom: '20px',
-  } as React.CSSProperties,
-  pinBox: {
-    width: '48px',
-    height: '56px',
-    borderRadius: '12px',
-    border: '2px solid #e2e8f0',
-    textAlign: 'center' as const,
-    fontSize: '22px',
-    fontWeight: 700,
-    color: '#1e293b',
-    background: '#f8fafc',
-    outline: 'none',
-    transition: 'border-color 0.2s, box-shadow 0.2s',
-  } as React.CSSProperties,
-  greeting: {
-    fontSize: '14px',
-    color: '#64748b',
-    textAlign: 'center' as const,
-    marginBottom: '20px',
-    lineHeight: 1.5,
-  } as React.CSSProperties,
-  waCard: {
-    textAlign: 'center' as const,
-    padding: '20px 0',
-  } as React.CSSProperties,
-  waIcon: {
-    width: '64px',
-    height: '64px',
-    borderRadius: '50%',
-    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    margin: '0 auto 20px',
-    fontSize: '32px',
-    color: '#fff',
-    boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
-  } as React.CSSProperties,
-  waBtn: {
-    display: 'inline-flex',
-    alignItems: 'center',
-    gap: '8px',
-    padding: '14px 32px',
-    borderRadius: '12px',
-    background: 'linear-gradient(135deg, #22c55e, #16a34a)',
-    color: '#fff',
-    fontSize: '15px',
-    fontWeight: 700,
-    textDecoration: 'none',
-    boxShadow: '0 4px 14px rgba(34,197,94,0.3)',
-    transition: 'transform 0.15s',
-  } as React.CSSProperties,
-  footer: {
-    fontSize: '12px',
-    color: '#94a3b8',
-    textAlign: 'center' as const,
-    marginTop: '32px',
-  } as React.CSSProperties,
-};
-
 export default function Login() {
   const { login } = useAuth();
   const navigate = useNavigate();
@@ -353,193 +95,451 @@ export default function Login() {
   }
 
   return (
-    <div style={styles.wrapper}>
-      <div style={styles.container}>
-        {/* ===== Left Panel ===== */}
-        <div style={styles.leftPanel} className="d-none d-md-flex">
-          <div style={styles.leftOverlay} />
-          <div style={styles.leftContent}>
+    <div
+      style={{
+        minHeight: '100vh',
+        display: 'flex',
+        flexDirection: 'column',
+        justifyContent: 'center',
+        alignItems: 'center',
+        background: 'linear-gradient(145deg, #0b132b 0%, #1c2541 50%, #1e3a8a 100%)',
+        padding: '20px 16px',
+        fontFamily: "'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif",
+      }}
+    >
+      {/* ===== Card Login Mobile First ===== */}
+      <div
+        style={{
+          width: '100%',
+          maxWidth: '440px',
+          background: '#ffffff',
+          borderRadius: '24px',
+          padding: '36px 28px',
+          boxShadow: '0 20px 50px rgba(0, 0, 0, 0.35)',
+          position: 'relative',
+          boxSizing: 'border-box',
+        }}
+      >
+        {/* Logo & Header */}
+        <div style={{ textAlign: 'center', marginBottom: '24px' }}>
+          <div
+            style={{
+              width: '92px',
+              height: '92px',
+              margin: '0 auto 14px',
+              borderRadius: '50%',
+              background: '#ffffff',
+              padding: '6px',
+              boxShadow: '0 8px 24px rgba(30, 58, 138, 0.18)',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              border: '2px solid #eff6ff',
+            }}
+          >
             <img
               src="/deskapp/images/logo-mbg.png"
-              alt="MBG"
-              style={styles.leftLogo}
+              alt="Mitra Barito Group"
+              style={{
+                width: '100%',
+                height: '100%',
+                objectFit: 'contain',
+                borderRadius: '50%',
+              }}
             />
-            <div style={styles.leftTitle}>Mitra Barito Group</div>
-            <div style={styles.leftSubtitle}>
-              Enterprise Resource Planning
-              <br />
-              Sistem Informasi Terintegrasi
-            </div>
-            <div style={styles.features}>
-              <div style={styles.featureItem}>
-                <span style={styles.featureIcon}>📊</span>
-                <span>Kelola data karyawan secara dinamis</span>
-              </div>
-              <div style={styles.featureItem}>
-                <span style={styles.featureIcon}>📋</span>
-                <span>Form builder tanpa coding</span>
-              </div>
-              <div style={styles.featureItem}>
-                <span style={styles.featureIcon}>✅</span>
-                <span>Alur persetujuan bertingkat</span>
-              </div>
-              <div style={styles.featureItem}>
-                <span style={styles.featureIcon}>🔒</span>
-                <span>Keamanan berlapis (PIN + WA)</span>
-              </div>
-            </div>
           </div>
+          <h1
+            style={{
+              fontSize: '20px',
+              fontWeight: 800,
+              color: '#0f172a',
+              margin: '0 0 4px',
+              letterSpacing: '-0.3px',
+            }}
+          >
+            MITRA BARITO GROUP
+          </h1>
+          <p
+            style={{
+              fontSize: '13px',
+              color: '#64748b',
+              margin: 0,
+              fontWeight: 500,
+            }}
+          >
+            {step === 'wa'
+              ? 'Verifikasi Akun Pengguna'
+              : step === 'nrp'
+              ? 'Sistem Informasi & Layanan Karyawan'
+              : `Halo, ${name}`}
+          </p>
         </div>
 
-        {/* ===== Right Panel (Form) ===== */}
-        <div style={styles.rightPanel}>
-          <img
-            src="/deskapp/images/logo-mbg.png"
-            alt="Mitra Barito Group"
-            style={styles.formLogo}
-          />
+        {/* Subtitle / Step description */}
+        <div
+          style={{
+            fontSize: '13px',
+            color: '#475569',
+            textAlign: 'center',
+            marginBottom: '20px',
+            background: '#f8fafc',
+            padding: '10px 14px',
+            borderRadius: '12px',
+            border: '1px solid #e2e8f0',
+          }}
+        >
+          {step === 'nrp' && 'Masukkan NRP untuk masuk ke akun Anda'}
+          {step === 'credential' && (isPin ? 'Masukkan 6 digit PIN akun Anda' : 'Masukkan NIK KTP untuk verifikasi pertama')}
+          {step === 'wa' && 'Akun baru memerlukan verifikasi admin via WhatsApp'}
+        </div>
 
-          {step === 'wa' && wa ? (
-            <div style={styles.waCard}>
-              <div style={styles.waIcon}>✓</div>
-              <div style={styles.formTitle}>Verifikasi Diperlukan</div>
-              <p style={styles.greeting}>
-                Demi keamanan akun Anda, admin perlu memvalidasi identitas Anda.
-                <br />
-                Kirim pesan otomatis ke WhatsApp admin.
-              </p>
-              <a style={styles.waBtn} href={waLink()} target="_blank" rel="noreferrer">
-                💬 Lanjutkan ke WhatsApp
-              </a>
-              <button type="button" style={styles.linkBtn} onClick={back}>
-                ← Kembali
-              </button>
+        {error && (
+          <div
+            style={{
+              background: '#fef2f2',
+              color: '#dc2626',
+              fontSize: '13px',
+              padding: '10px 14px',
+              borderRadius: '12px',
+              marginBottom: '16px',
+              border: '1px solid #fecaca',
+              textAlign: 'center',
+              display: 'flex',
+              alignItems: 'center',
+              justifyContent: 'center',
+              gap: '6px',
+            }}
+          >
+            <span>⚠️</span>
+            <span>{error}</span>
+          </div>
+        )}
+
+        {/* Step: WA Verification */}
+        {step === 'wa' && wa ? (
+          <div style={{ textAlign: 'center', padding: '8px 0' }}>
+            <div
+              style={{
+                width: '64px',
+                height: '64px',
+                borderRadius: '50%',
+                background: 'linear-gradient(135deg, #22c55e, #16a34a)',
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                margin: '0 auto 16px',
+                fontSize: '28px',
+                color: '#fff',
+                boxShadow: '0 8px 20px rgba(34, 197, 94, 0.35)',
+              }}
+            >
+              ✓
             </div>
-          ) : (
-            <>
-              <div style={styles.formTitle}>
-                {step === 'nrp' ? 'Selamat Datang' : `Halo, ${name}`}
-              </div>
-              <div style={styles.formSubtitle}>
-                {step === 'nrp'
-                  ? 'Masukkan NRP untuk melanjutkan'
-                  : isPin
-                    ? 'Masukkan PIN 6 digit Anda'
-                    : 'Masukkan NIK KTP untuk verifikasi awal'}
-              </div>
-
-              {error && <div style={styles.error}>⚠️ {error}</div>}
-
-              <form onSubmit={step === 'nrp' ? checkNrp : doLogin}>
-                {step === 'nrp' ? (
-                  <div style={styles.inputGroup}>
-                    <span style={styles.inputIcon}>👤</span>
-                    <input
-                      type="text"
-                      style={styles.input}
-                      placeholder="Nomor Registrasi Pegawai"
-                      value={nrp}
-                      onChange={(e) => setNrp(e.target.value)}
-                      autoFocus
-                      onFocus={(e) => {
-                        e.target.style.borderColor = '#2563eb';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.15)';
-                        e.target.style.background = '#fff';
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = '#e2e8f0';
-                        e.target.style.boxShadow = 'none';
-                        e.target.style.background = '#f8fafc';
-                      }}
-                    />
-                  </div>
-                ) : isPin ? (
-                  <div style={styles.pinRow}>
-                    {pin.map((d, i) => (
-                      <input
-                        key={i}
-                        style={styles.pinBox}
-                        inputMode="numeric"
-                        maxLength={1}
-                        value={d}
-                        ref={(el) => {
-                          pinRefs.current[i] = el;
-                        }}
-                        onChange={(e) => handlePinInput(i, e.target.value)}
-                        onKeyDown={(e) => handlePinKeyDown(i, e)}
-                        onFocus={(e) => {
-                          e.target.style.borderColor = '#2563eb';
-                          e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.15)';
-                        }}
-                        onBlur={(e) => {
-                          e.target.style.borderColor = '#e2e8f0';
-                          e.target.style.boxShadow = 'none';
-                        }}
-                        autoFocus={i === 0}
-                      />
-                    ))}
-                  </div>
-                ) : (
-                  <div style={styles.inputGroup}>
-                    <span style={styles.inputIcon}>🔒</span>
-                    <input
-                      type="password"
-                      style={styles.input}
-                      placeholder="Nomor Induk Kependudukan (NIK)"
-                      value={nik}
-                      onChange={(e) => setNik(e.target.value)}
-                      autoFocus
-                      onFocus={(e) => {
-                        e.target.style.borderColor = '#2563eb';
-                        e.target.style.boxShadow = '0 0 0 3px rgba(37,99,235,0.15)';
-                        e.target.style.background = '#fff';
-                      }}
-                      onBlur={(e) => {
-                        e.target.style.borderColor = '#e2e8f0';
-                        e.target.style.boxShadow = 'none';
-                        e.target.style.background = '#f8fafc';
-                      }}
-                    />
-                  </div>
-                )}
-
-                <button
-                  type="submit"
+            <p
+              style={{
+                fontSize: '13px',
+                color: '#64748b',
+                lineHeight: 1.6,
+                marginBottom: '20px',
+              }}
+            >
+              Demi keamanan akun, silakan kirim pesan otomatis ke WhatsApp admin melalui tombol di bawah.
+            </p>
+            <a
+              href={waLink()}
+              target="_blank"
+              rel="noreferrer"
+              style={{
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                gap: '8px',
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                background: 'linear-gradient(135deg, #22c55e 0%, #16a34a 100%)',
+                color: '#fff',
+                fontSize: '15px',
+                fontWeight: 700,
+                textDecoration: 'none',
+                boxShadow: '0 6px 18px rgba(34, 197, 94, 0.35)',
+                boxSizing: 'border-box',
+              }}
+            >
+              <span>💬</span>
+              <span>Lanjutkan ke WhatsApp</span>
+            </a>
+            <button
+              type="button"
+              onClick={back}
+              style={{
+                background: 'none',
+                border: 'none',
+                color: '#2563eb',
+                fontSize: '13px',
+                fontWeight: 600,
+                cursor: 'pointer',
+                marginTop: '16px',
+                padding: '8px',
+              }}
+            >
+              ← Kembali ke awal
+            </button>
+          </div>
+        ) : (
+          <form onSubmit={step === 'nrp' ? checkNrp : doLogin}>
+            {step === 'nrp' ? (
+              <div style={{ marginBottom: '20px' }}>
+                <label
                   style={{
-                    ...styles.btn,
-                    ...(loading ? styles.btnDisabled : {}),
-                  }}
-                  disabled={loading}
-                  onMouseEnter={(e) => {
-                    if (!loading) {
-                      (e.target as HTMLElement).style.transform = 'translateY(-1px)';
-                      (e.target as HTMLElement).style.boxShadow = '0 6px 20px rgba(37,99,235,0.5)';
-                    }
-                  }}
-                  onMouseLeave={(e) => {
-                    (e.target as HTMLElement).style.transform = 'none';
-                    (e.target as HTMLElement).style.boxShadow = '0 4px 14px rgba(37,99,235,0.4)';
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#475569',
+                    marginBottom: '6px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
                   }}
                 >
-                  {loading
-                    ? '⏳ Memproses…'
-                    : step === 'nrp'
-                      ? 'Lanjut →'
-                      : '🔑 Masuk'}
-                </button>
+                  NRP Karyawan
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '14px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '16px',
+                      color: '#94a3b8',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    👤
+                  </span>
+                  <input
+                    type="text"
+                    placeholder="Contoh: MBG12345"
+                    value={nrp}
+                    onChange={(e) => setNrp(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '14px 14px 14px 44px',
+                      borderRadius: '14px',
+                      border: '2px solid #e2e8f0',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      background: '#f8fafc',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      transition: 'all 0.2s',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#2563eb';
+                      e.target.style.background = '#ffffff';
+                      e.target.style.boxShadow = '0 0 0 4px rgba(37, 99, 235, 0.12)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#e2e8f0';
+                      e.target.style.background = '#f8fafc';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            ) : isPin ? (
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#475569',
+                    marginBottom: '10px',
+                    textAlign: 'center',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  6 Digit PIN
+                </label>
+                <div
+                  style={{
+                    display: 'flex',
+                    gap: '8px',
+                    justifyContent: 'center',
+                  }}
+                >
+                  {pin.map((d, i) => (
+                    <input
+                      key={i}
+                      inputMode="numeric"
+                      maxLength={1}
+                      value={d}
+                      ref={(el) => {
+                        pinRefs.current[i] = el;
+                      }}
+                      onChange={(e) => handlePinInput(i, e.target.value)}
+                      onKeyDown={(e) => handlePinKeyDown(i, e)}
+                      autoFocus={i === 0}
+                      style={{
+                        width: '44px',
+                        height: '52px',
+                        borderRadius: '12px',
+                        border: '2px solid #e2e8f0',
+                        textAlign: 'center',
+                        fontSize: '20px',
+                        fontWeight: 700,
+                        color: '#0f172a',
+                        background: '#f8fafc',
+                        outline: 'none',
+                        transition: 'all 0.2s',
+                        boxSizing: 'border-box',
+                      }}
+                      onFocus={(e) => {
+                        e.target.style.borderColor = '#2563eb';
+                        e.target.style.background = '#ffffff';
+                        e.target.style.boxShadow = '0 0 0 4px rgba(37, 99, 235, 0.12)';
+                      }}
+                      onBlur={(e) => {
+                        e.target.style.borderColor = '#e2e8f0';
+                        e.target.style.background = '#f8fafc';
+                        e.target.style.boxShadow = 'none';
+                      }}
+                    />
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div style={{ marginBottom: '20px' }}>
+                <label
+                  style={{
+                    display: 'block',
+                    fontSize: '12px',
+                    fontWeight: 700,
+                    color: '#475569',
+                    marginBottom: '6px',
+                    textTransform: 'uppercase',
+                    letterSpacing: '0.5px',
+                  }}
+                >
+                  NIK KTP (Password Awal)
+                </label>
+                <div style={{ position: 'relative' }}>
+                  <span
+                    style={{
+                      position: 'absolute',
+                      left: '14px',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      fontSize: '16px',
+                      color: '#94a3b8',
+                      pointerEvents: 'none',
+                    }}
+                  >
+                    🔒
+                  </span>
+                  <input
+                    type="password"
+                    placeholder="Masukkan NIK KTP Anda"
+                    value={nik}
+                    onChange={(e) => setNik(e.target.value)}
+                    autoFocus
+                    style={{
+                      width: '100%',
+                      padding: '14px 14px 14px 44px',
+                      borderRadius: '14px',
+                      border: '2px solid #e2e8f0',
+                      fontSize: '15px',
+                      fontWeight: 600,
+                      color: '#0f172a',
+                      background: '#f8fafc',
+                      outline: 'none',
+                      boxSizing: 'border-box',
+                      transition: 'all 0.2s',
+                    }}
+                    onFocus={(e) => {
+                      e.target.style.borderColor = '#2563eb';
+                      e.target.style.background = '#ffffff';
+                      e.target.style.boxShadow = '0 0 0 4px rgba(37, 99, 235, 0.12)';
+                    }}
+                    onBlur={(e) => {
+                      e.target.style.borderColor = '#e2e8f0';
+                      e.target.style.background = '#f8fafc';
+                      e.target.style.boxShadow = 'none';
+                    }}
+                  />
+                </div>
+              </div>
+            )}
 
-                {step === 'credential' && (
-                  <button type="button" style={styles.linkBtn} onClick={back}>
-                    ← Ganti NRP
-                  </button>
-                )}
-              </form>
-            </>
-          )}
+            {/* Submit Button */}
+            <button
+              type="submit"
+              disabled={loading}
+              style={{
+                width: '100%',
+                padding: '14px',
+                borderRadius: '14px',
+                border: 'none',
+                background: loading
+                  ? '#94a3b8'
+                  : 'linear-gradient(135deg, #1e3a8a 0%, #2563eb 100%)',
+                color: '#ffffff',
+                fontSize: '15px',
+                fontWeight: 700,
+                cursor: loading ? 'not-allowed' : 'pointer',
+                boxShadow: loading
+                  ? 'none'
+                  : '0 6px 20px rgba(37, 99, 235, 0.35)',
+                transition: 'all 0.2s',
+                letterSpacing: '0.3px',
+              }}
+            >
+              {loading
+                ? 'Sedang Memproses...'
+                : step === 'nrp'
+                ? 'Lanjut →'
+                : 'Masuk ke Akun'}
+            </button>
 
-          <div style={styles.footer}>
-            © {new Date().getFullYear()} Mitra Barito Group · v2.0
-          </div>
+            {step === 'credential' && (
+              <button
+                type="button"
+                onClick={back}
+                style={{
+                  width: '100%',
+                  background: 'none',
+                  border: 'none',
+                  color: '#2563eb',
+                  fontSize: '13px',
+                  fontWeight: 600,
+                  cursor: 'pointer',
+                  marginTop: '12px',
+                  padding: '8px',
+                  textAlign: 'center',
+                }}
+              >
+                ← Ganti NRP
+              </button>
+            )}
+          </form>
+        )}
+
+        {/* Footer */}
+        <div
+          style={{
+            marginTop: '28px',
+            textAlign: 'center',
+            fontSize: '11px',
+            color: '#94a3b8',
+            borderTop: '1px solid #f1f5f9',
+            paddingTop: '16px',
+          }}
+        >
+          © {new Date().getFullYear()} PT Mitra Barito Group
         </div>
       </div>
     </div>
