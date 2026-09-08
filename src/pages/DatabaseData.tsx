@@ -1,21 +1,31 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import {
   eavApi,
+  approvalApi,
   type BuilderEntity,
   type BuilderField,
   type EavRecord,
-  type FieldShow,
+  type PersetujuanStep,
+  type ApprovalDataRow,
 } from '../api';
 import { slugify } from '../profile';
+import { useAuth } from '../auth';
+import { useEav } from '../context/EavContext';
 import DataTable from '../components/DataTable';
 import { renderFieldValue } from '../eavRender';
 
 type FlatRow = { __recordCode: string; __recordUuid: string } & Record<string, string>;
 
 export default function DatabaseData() {
-  const [entities, setEntities] = useState<Record<string, BuilderEntity>>({});
-  const [fieldShows, setFieldShows] = useState<FieldShow[]>([]);
-  const [loading, setLoading] = useState(true);
+  const { user } = useAuth();
+  const {
+    entities,
+    fieldShows,
+    persetujuan,
+    fetchMasterRecords,
+    fetchSchema,
+  } = useEav();
+
   const [error, setError] = useState('');
   const [busy, setBusy] = useState(false);
 
@@ -31,6 +41,10 @@ export default function DatabaseData() {
   const [historicalValues, setHistoricalValues] = useState<Record<string, string>>({});
   const [historyRows, setHistoryRows] = useState<unknown[]>([]);
   const [familyData, setFamilyData] = useState<Record<string, unknown> | null>(null);
+  const [approvalConfig, setApprovalConfig] = useState<PersetujuanStep[]>([]);
+  const [approvalRows, setApprovalRows] = useState<ApprovalDataRow[]>([]);
+  const [approvalLoading, setApprovalLoading] = useState(false);
+  const [approvalActionBusy, setApprovalActionBusy] = useState<number | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
@@ -47,20 +61,21 @@ export default function DatabaseData() {
   const primaryField = selectedEntity?.primaryCode ?? '';
 
   const load = useCallback(() => {
-    setLoading(true);
-    eavApi
-      .builder()
-      .then((b) => {
-        setEntities(b.entities ?? {});
-        setFieldShows(b.fieldShows ?? []);
-      })
-      .catch((e) => setError(e instanceof Error ? e.message : 'Gagal memuat'))
-      .finally(() => setLoading(false));
-  }, []);
+    void fetchSchema();
+  }, [fetchSchema]);
 
   useEffect(() => {
     load();
   }, [load]);
+
+  async function refreshRecords(code: string) {
+    try {
+      const recs = await eavApi.records(code);
+      setRecords(recs);
+    } catch {
+      // ignore
+    }
+  }
 
   async function selectTable(code: string) {
     setSelected(code);
@@ -71,20 +86,29 @@ export default function DatabaseData() {
     const entity = entities[code];
     if (!entity) return;
 
+    // Ambil konfigurasi approval langsung dari EavContext (0 HTTP request!)
+    const stepsMap = persetujuan[code];
+    if (stepsMap) {
+      setApprovalConfig(Object.values(stepsMap));
+    } else {
+      setApprovalConfig([]);
+    }
+
+    const dariFields = Object.values(entity.fields ?? {}).filter((f) =>
+      ['DARI-TABEL', 'INPUT-AUTOCOMPLITE', 'REFERENCE'].includes(
+        (f.type ?? '').toUpperCase(),
+      ),
+    );
+
     const [recs, srcMap] = await Promise.all([
       eavApi.records(code).catch(() => [] as EavRecord[]),
       (async () => {
         const map: Record<string, EavRecord[]> = {};
-        const dariFields = Object.values(entity.fields ?? {}).filter((f) =>
-          ['DARI-TABEL', 'INPUT-AUTOCOMPLITE', 'REFERENCE'].includes(
-            (f.type ?? '').toUpperCase(),
-          ),
-        );
         await Promise.all(
           dariFields.map(async (f) => {
             const src = f.data_source?.entitySource;
             if (src && !map[src]) {
-              map[src] = await eavApi.records(src).catch(() => [] as EavRecord[]);
+              map[src] = await fetchMasterRecords(src);
             }
           }),
         );
@@ -120,6 +144,45 @@ export default function DatabaseData() {
     setActionRecord(r);
     setActionMode('show');
     setFamilyData(await eavApi.family(selected, r.recordCode).catch(() => null));
+    setApprovalLoading(true);
+    approvalApi
+      .data(selected, r.recordCode)
+      .then(setApprovalRows)
+      .catch(() => setApprovalRows([]))
+      .finally(() => setApprovalLoading(false));
+  }
+
+  async function initApproval() {
+    if (!actionRecord) return;
+    const requesterNrp =
+      actionRecord.values['NRP'] || actionRecord.values['nrp'] || user?.nrp;
+    if (!requesterNrp) {
+      alert('NRP pemohon tidak ditemukan');
+      return;
+    }
+    setApprovalLoading(true);
+    try {
+      const rows = await approvalApi.init(selected, actionRecord.recordCode, requesterNrp);
+      setApprovalRows(rows);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Gagal memulai alur persetujuan');
+    } finally {
+      setApprovalLoading(false);
+    }
+  }
+
+  async function handleApprovalAction(id: number, action: 'ACC' | 'DECLINE') {
+    if (!actionRecord) return;
+    setApprovalActionBusy(id);
+    try {
+      await approvalApi.action(id, action);
+      const updated = await approvalApi.data(selected, actionRecord.recordCode);
+      setApprovalRows(updated);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : 'Gagal memproses persetujuan');
+    } finally {
+      setApprovalActionBusy(null);
+    }
   }
 
   async function updateRecord(r: EavRecord) {
@@ -148,7 +211,7 @@ export default function DatabaseData() {
       await eavApi.historicalUpdate(selected, actionRecord.recordCode, changeTypeCode, historicalValues);
       setActionMode(null);
       setActionRecord(null);
-      await selectTable(selected);
+      await refreshRecords(selected);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal membuat historical update');
     } finally {
@@ -176,8 +239,18 @@ export default function DatabaseData() {
         if (val !== undefined && val !== '') cleaned[f.code] = val;
       }
       await eavApi.storeRecord(selectedEntity.code, { recordCode, values: cleaned });
+      if (!editRecordCode && approvalConfig.length > 0) {
+        const requesterNrp = cleaned['NRP'] || cleaned['nrp'] || user?.nrp;
+        if (requesterNrp) {
+          try {
+            await approvalApi.init(selectedEntity.code, recordCode, requesterNrp);
+          } catch (err) {
+            console.warn('Gagal inisialisasi approval otomatis:', err);
+          }
+        }
+      }
       resetForm();
-      await selectTable(selectedEntity.code);
+      await refreshRecords(selectedEntity.code);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal menyimpan data');
     } finally {
@@ -191,7 +264,7 @@ export default function DatabaseData() {
     setError('');
     try {
       await eavApi.deleteRecord(selected, r.recordCode);
-      await selectTable(selected);
+      await refreshRecords(selected);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal menghapus data');
     } finally {
@@ -216,7 +289,7 @@ export default function DatabaseData() {
     setError('');
     try {
       const res = await eavApi.importXlsx(file);
-      await selectTable(selected);
+      await refreshRecords(selected);
       alert(`Import selesai: ${res.imported} data`);
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal import');
@@ -327,9 +400,7 @@ export default function DatabaseData() {
         <div className="col-md-6 mb-30">
           <div className="card-box pd-20">
             <div className="h5 mb-2 text-primary">List Tabel</div>
-            {loading ? (
-              <p className="text-secondary">Memuat…</p>
-            ) : (
+
               <DataTable<BuilderEntity>
                 columns={[
                   {
@@ -358,7 +429,6 @@ export default function DatabaseData() {
                 pageSize={12}
                 emptyText="Belum ada tabel."
               />
-            )}
           </div>
         </div>
 
@@ -366,7 +436,15 @@ export default function DatabaseData() {
         <div className="col-md-6 mb-30">
           <div className="card-box pd-20">
             <div className="d-flex justify-content-between align-items-center mb-3">
-              <span className="h5 mb-0 text-primary">{selectedEntity ? selectedEntity.name : 'Detail'}</span>
+              <div>
+                <span className="h5 mb-0 text-primary">{selectedEntity ? selectedEntity.name : 'Detail'}</span>
+                {selectedEntity && approvalConfig.length > 0 && (
+                  <span className="badge badge-success ml-2" title="Form ini memiliki alur persetujuan bertingkat">
+                    <i className="bi bi-shield-check mr-1"></i>
+                    {approvalConfig.length} Persetujuan
+                  </span>
+                )}
+              </div>
               {selectedEntity && (
                 <button className="btn btn-sm btn-outline-secondary" onClick={resetForm}>
                   <i className="bi bi-plus"></i> Baru
@@ -507,14 +585,152 @@ export default function DatabaseData() {
                 <button className="close" onClick={() => setActionMode(null)}><span>&times;</span></button>
               </div>
               <div className="modal-body">
-                {actionMode === 'show' && selectedFields.filter((f) => f.type.toUpperCase() !== 'HIDDEN').map((field) => (
-                  <div className="row border-bottom py-2" key={field.code}><div className="col-md-5 font-14 weight-600">{field.name}</div><div className="col-md-7">{renderFieldValue(field, actionRecord.values[field.code], { record: actionRecord.values, sourceOptions, fieldShows })}</div></div>
-                ))}
-                {actionMode === 'show' && familyData && (
-                  <details className="mt-3" open>
-                    <summary className="font-14 weight-600">Data parent-child terkait</summary>
-                    <pre className="bg-light p-2 mt-2" style={{ maxHeight: 260, overflow: 'auto' }}>{JSON.stringify(familyData, null, 2)}</pre>
-                  </details>
+                {actionMode === 'show' && (
+                  <>
+                    <h6 className="weight-600 mb-3 text-secondary">Data Kolom</h6>
+                    {selectedFields
+                      .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
+                      .map((field) => (
+                        <div className="row border-bottom py-2" key={field.code}>
+                          <div className="col-md-5 font-14 weight-600">{field.name}</div>
+                          <div className="col-md-7">
+                            {renderFieldValue(field, actionRecord.values[field.code], {
+                              record: actionRecord.values,
+                              sourceOptions,
+                              fieldShows,
+                            })}
+                          </div>
+                        </div>
+                      ))}
+
+                    {/* ALUR PERSETUJUAN */}
+                    {approvalConfig.length > 0 && (
+                      <div className="mt-4 pt-3 border-top">
+                        <div className="d-flex justify-content-between align-items-center mb-3">
+                          <h6 className="weight-600 mb-0 text-primary">
+                            <i className="bi bi-shield-check mr-2"></i>Alur Persetujuan
+                          </h6>
+                          {approvalRows.length === 0 && (
+                            <button
+                              type="button"
+                              className="btn btn-sm btn-outline-primary"
+                              onClick={initApproval}
+                              disabled={approvalLoading}
+                            >
+                              <i className="bi bi-play-circle mr-1"></i> Mulai Alur Persetujuan
+                            </button>
+                          )}
+                        </div>
+
+                        {approvalLoading ? (
+                          <div className="py-2 text-secondary font-13">
+                            <span className="spinner-border spinner-border-sm mr-2" role="status"></span>
+                            Memuat data persetujuan...
+                          </div>
+                        ) : approvalRows.length === 0 ? (
+                          <div className="alert alert-light border font-13 mb-0">
+                            Belum ada alur persetujuan aktif untuk record ini. Klik &quot;Mulai Alur Persetujuan&quot; untuk memulai.
+                          </div>
+                        ) : (
+                          <div className="table-responsive">
+                            <table className="table table-sm table-bordered">
+                              <thead className="thead-light font-12">
+                                <tr>
+                                  <th style={{ width: 90 }}>Level</th>
+                                  <th>Keterangan / Peran</th>
+                                  <th>Penanda Tangan</th>
+                                  <th style={{ width: 140 }}>Status</th>
+                                  <th style={{ width: 160 }}>Waktu</th>
+                                  <th style={{ width: 150 }} className="text-center">Aksi</th>
+                                </tr>
+                              </thead>
+                              <tbody className="font-13">
+                                {approvalRows.map((row) => {
+                                  const stepCfg = approvalConfig.find((c) => c.level === row.level);
+                                  const label =
+                                    stepCfg?.description?.replace(/-/g, ' ').trim() ||
+                                    stepCfg?.grade ||
+                                    row.level;
+                                  const isPending = row.status === null;
+                                  const isMe =
+                                    user?.nrp === row.nrp || (user?.role !== undefined && user.role <= 2);
+                                  const canAct = isPending && isMe;
+
+                                  return (
+                                    <tr key={row.id}>
+                                      <td className="weight-600">{row.level}</td>
+                                      <td>{label}</td>
+                                      <td>
+                                        <code>{row.nrp}</code>
+                                        {user?.nrp === row.nrp && (
+                                          <span className="badge badge-info ml-1">Anda</span>
+                                        )}
+                                      </td>
+                                      <td>
+                                        {row.status === 'ACC' ? (
+                                          <span className="badge badge-success">
+                                            <i className="bi bi-check-circle mr-1"></i> Disetujui
+                                          </span>
+                                        ) : row.status === 'DECLINE' ? (
+                                          <span className="badge badge-danger">
+                                            <i className="bi bi-x-circle mr-1"></i> Ditolak
+                                          </span>
+                                        ) : (
+                                          <span className="badge badge-warning">
+                                            <i className="bi bi-hourglass-split mr-1"></i> Menunggu
+                                          </span>
+                                        )}
+                                      </td>
+                                      <td className="text-muted font-12">
+                                        {row.dateChange
+                                          ? new Date(row.dateChange).toLocaleString('id-ID')
+                                          : '-'}
+                                      </td>
+                                      <td className="text-center">
+                                        {canAct ? (
+                                          <div className="btn-group btn-group-sm">
+                                            <button
+                                              type="button"
+                                              className="btn btn-success btn-sm"
+                                              title="Setujui (ACC)"
+                                              disabled={approvalActionBusy === row.id}
+                                              onClick={() => handleApprovalAction(row.id, 'ACC')}
+                                            >
+                                              <i className="bi bi-check-lg"></i> ACC
+                                            </button>
+                                            <button
+                                              type="button"
+                                              className="btn btn-danger btn-sm"
+                                              title="Tolak (DECLINE)"
+                                              disabled={approvalActionBusy === row.id}
+                                              onClick={() => handleApprovalAction(row.id, 'DECLINE')}
+                                            >
+                                              <i className="bi bi-x-lg"></i> Tolak
+                                            </button>
+                                          </div>
+                                        ) : (
+                                          <span className="text-muted font-12">-</span>
+                                        )}
+                                      </td>
+                                    </tr>
+                                  );
+                                })}
+                              </tbody>
+                            </table>
+                          </div>
+                        )}
+                      </div>
+                    )}
+
+                    {familyData && (
+                      <details className="mt-3" open>
+                        <summary className="font-14 weight-600">Data parent-child terkait</summary>
+                        <pre className="bg-light p-2 mt-2" style={{ maxHeight: 260, overflow: 'auto' }}>
+                          {JSON.stringify(familyData, null, 2)}
+                        </pre>
+                      </details>
+                    )}
+                  </>
                 )}
                 {actionMode === 'update' && (
                   <>

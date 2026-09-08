@@ -1,30 +1,20 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth';
-import { api } from '../api';
+import { useEav } from '../context/EavContext';
 import { fetchProfile, type ProfileData } from '../profile';
-
-interface BuilderMeta {
-  entities: Record<string, unknown>;
-  menus: Record<string, string[]>;
-}
 
 const MUTED = '#b2b1b6';
 
 export default function Home() {
   const { user } = useAuth();
-  const [entityCount, setEntityCount] = useState(0);
-  const [menus, setMenus] = useState<[string, string[]][]>([]);
+  const { entities, menus: eavMenus } = useEav();
   const [error, setError] = useState('');
   const [profile, setProfile] = useState<ProfileData | null>(null);
 
-  useEffect(() => {
-    api<BuilderMeta>('/eav/builder')
-      .then((b) => {
-        setEntityCount(Object.keys(b.entities).length);
-        setMenus(Object.entries(b.menus));
-      })
-      .catch((err) => setError(err instanceof Error ? err.message : 'Gagal memuat'));
+  const entityCount = useMemo(() => Object.keys(entities).length, [entities]);
+  const menus = useMemo(() => Object.entries(eavMenus), [eavMenus]);
 
+  useEffect(() => {
     if (user?.nrp) {
       fetchProfile(user.nrp)
         .then(setProfile)

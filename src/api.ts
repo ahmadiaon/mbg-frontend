@@ -154,12 +154,32 @@ export interface BuilderEntity {
   fields?: Record<string, BuilderField>;
 }
 
+export interface PersetujuanStep {
+  level: string;
+  grade?: string;
+  group?: string;
+  description?: string;
+  reference?: string;
+}
+
+export interface ApprovalDataRow {
+  id: number;
+  codeForm: string;
+  codeData: string;
+  level: string;
+  nrp: string;
+  status: 'ACC' | 'DECLINE' | null;
+  dateChange: string | null;
+  createdAt: string;
+}
+
 export interface BuilderMeta {
   entities: Record<string, BuilderEntity>;
   menus: Record<string, string[]>;
   children: Record<string, string[]>;
   fieldShows?: FieldShow[];
   groupForms?: GroupForm[];
+  persetujuan?: Record<string, Record<string, PersetujuanStep>>;
 }
 
 export interface FieldShow {
@@ -191,6 +211,7 @@ export interface CreateEntityBody {
   menu?: string;
   parentCode?: string;
   primaryCode?: string;
+  persetujuan?: PersetujuanStep[];
 }
 
 export interface CreateFieldBody {
@@ -419,3 +440,24 @@ export const authorityAdminApi = {
       body: JSON.stringify(body),
     }),
 };
+
+export const approvalApi = {
+  configs: () => api<Record<string, Record<string, PersetujuanStep>>>('/approval/configs'),
+  config: (entityCode: string) => api<PersetujuanStep[]>(`/approval/config/${encodeURIComponent(entityCode)}`),
+  saveConfig: (entityCode: string, steps: PersetujuanStep[]) =>
+    api<PersetujuanStep[]>(`/approval/config/${encodeURIComponent(entityCode)}`, {
+      method: 'POST',
+      body: JSON.stringify({ steps }),
+    }),
+  init: (entityCode: string, recordCode: string, requesterNrp: string) =>
+    api<ApprovalDataRow[]>('/approval/init', {
+      method: 'POST',
+      body: JSON.stringify({ entityCode, recordCode, requesterNrp }),
+    }),
+  data: (entityCode: string, recordCode: string) =>
+    api<ApprovalDataRow[]>(`/approval/data/${encodeURIComponent(entityCode)}/${encodeURIComponent(recordCode)}`),
+  pending: () => api<ApprovalDataRow[]>('/approval/pending'),
+  action: (id: number, action: 'ACC' | 'DECLINE') =>
+    api<ApprovalDataRow>(`/approval/${id}/${action}`, { method: 'POST' }),
+};
+

@@ -11,6 +11,7 @@ import DatabaseForm from './pages/DatabaseForm';
 import DatabaseData from './pages/DatabaseData';
 import Authority from './pages/Authority';
 import DynamicFeature from './pages/DynamicFeature';
+import { EavProvider } from './context/EavContext';
 
 function RequireAuth({ children }: { children: ReactNode }) {
   const { token } = useAuth();
@@ -19,7 +20,8 @@ function RequireAuth({ children }: { children: ReactNode }) {
 
 export default function App() {
   return (
-    <Routes>
+    <EavProvider>
+      <Routes>
       <Route path="/login" element={<Login />} />
       <Route path="/authentication/:token" element={<Authentication />} />
       <Route path="/mbg-link" element={<MbgLink />} />
@@ -38,5 +40,6 @@ export default function App() {
         <Route path="*" element={<DynamicFeature />} />
       </Route>
     </Routes>
+    </EavProvider>
   );
 }

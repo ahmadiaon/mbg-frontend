@@ -70,8 +70,14 @@ export function formatMasaKerja(m: {
  * menjadi nama tampil. Backend `buildSession` mengembalikan data record
  * dengan struktur: data[fieldCode] = { value_data, uuid_data, code_data }.
  */
-export async function fetchProfile(nrp: string): Promise<ProfileData> {
+const profileCache = new Map<string, ProfileData>();
+const referenceTableCache = new Map<string, Map<string, string>>();
+
+export async function fetchProfile(nrp: string, force = false): Promise<ProfileData> {
   const slug = slugify(nrp);
+  if (!force && profileCache.has(slug)) {
+    return profileCache.get(slug)!;
+  }
 
   // 1. Record KARYAWAN + anak-anaknya (IDENTITAS-KARYAWAN, KONTRAK-KARYAWAN)
   const profile = await api<{ data: Record<string, { value_data?: string }> }>(
@@ -94,6 +100,10 @@ export async function fetchProfile(nrp: string): Promise<ProfileData> {
     entityCode: string,
     fieldCode: string,
   ): Promise<Map<string, string>> => {
+    const cacheKey = `${entityCode}:${fieldCode}`;
+    if (!force && referenceTableCache.has(cacheKey)) {
+      return referenceTableCache.get(cacheKey)!;
+    }
     const map = new Map<string, string>();
     const res = await api<{ data: Record<string, Record<string, { value_data?: string }>> }>(
       `/eav/builder?table=${entityCode}`,
@@ -103,6 +113,7 @@ export async function fetchProfile(nrp: string): Promise<ProfileData> {
       const val = fields?.[fieldCode]?.value_data;
       if (val) map.set(recCode, val);
     }
+    referenceTableCache.set(cacheKey, map);
     return map;
   };
 
@@ -114,7 +125,7 @@ export async function fetchProfile(nrp: string): Promise<ProfileData> {
       resolve('DEPARTEMEN', 'DEPARTEMEN'),
     ]);
 
-  return {
+  const result: ProfileData = {
     nrp: nrpVal || nrp,
     nama: namaVal,
     perusahaan: perusahaanMap.get(perusahaanSlug) || perusahaanSlug,
@@ -125,4 +136,7 @@ export async function fetchProfile(nrp: string): Promise<ProfileData> {
       ? formatMasaKerja(hitungMasaKerja(tanggalMasuk))
       : '',
   };
+
+  profileCache.set(slug, result);
+  return result;
 }
