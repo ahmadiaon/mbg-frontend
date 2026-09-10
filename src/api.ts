@@ -587,6 +587,7 @@ export interface WaterLevelItem {
   jam: string;
   tinggi: number;
   lokasi: string;
+  cuaca?: string | null;
   foto_panorama: string | null;
   foto_draft_meter: string | null;
   createdAt: string;

@@ -3,6 +3,7 @@ import { Link } from 'react-router-dom';
 import html2canvas from 'html2canvas';
 import { useAuth } from '../auth';
 import {
+  eavApi,
   waterLevelApi,
   type WaterLevelItem,
   type WaterLevelSummary,
@@ -93,7 +94,7 @@ export default function WaterLevel() {
 
   // Table Search, Sort & Pagination
   const [searchTerm, setSearchTerm] = useState('');
-  const [sortField, setSortField] = useState<'tanggal' | 'jam' | 'lokasi' | 'tinggi' | 'status'>('tanggal');
+  const [sortField, setSortField] = useState<'tanggal' | 'jam' | 'lokasi' | 'cuaca' | 'tinggi' | 'status'>('tanggal');
   const [sortDirection, setSortDirection] = useState<'asc' | 'desc'>('desc');
   const [currentPage, setCurrentPage] = useState(1);
   const [pageSize, setPageSize] = useState(10);
@@ -108,6 +109,9 @@ export default function WaterLevel() {
 
   const reportCardRef = useRef<HTMLDivElement>(null);
 
+  // Cuaca options from master DATABASE-CUACA
+  const [cuacaOptions, setCuacaOptions] = useState<string[]>(['Cerah', 'Mendung']);
+
   // Form state
   const now = new Date();
   const todayStr = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, '0')}-${String(now.getDate()).padStart(2, '0')}`;
@@ -116,6 +120,7 @@ export default function WaterLevel() {
   const [formTanggal, setFormTanggal] = useState(todayStr);
   const [formJam, setFormJam] = useState(timeStr);
   const [formLokasi, setFormLokasi] = useState<'PT. MB' | 'PT. SRI'>('PT. MB');
+  const [formCuaca, setFormCuaca] = useState('Cerah');
   const [formTinggi, setFormTinggi] = useState('');
   const [formPanorama, setFormPanorama] = useState<File | null>(null);
   const [formDraftMeter, setFormDraftMeter] = useState<File | null>(null);
@@ -154,6 +159,24 @@ export default function WaterLevel() {
     loadData(dashboardLocation);
   }, [dashboardLocation]);
 
+  useEffect(() => {
+    const fetchCuaca = async () => {
+      try {
+        const recs = await eavApi.records('DATABASE-CUACA');
+        const list = recs
+          .map((r) => r.values?.['CUACA'] || r.recordCode)
+          .filter(Boolean);
+        if (list.length > 0) {
+          setCuacaOptions(list);
+          setFormCuaca((curr) => (list.includes(curr) ? curr : list[0]));
+        }
+      } catch (err) {
+        console.warn('Gagal memuat cuaca dari DATABASE-CUACA:', err);
+      }
+    };
+    fetchCuaca();
+  }, []);
+
   const showToast = (type: 'success' | 'error', message: string) => {
     setToast({ type, message });
     setTimeout(() => setToast(null), 4000);
@@ -177,6 +200,7 @@ export default function WaterLevel() {
       fd.append('jam', formJam);
       fd.append('lokasi', formLokasi);
       fd.append('tinggi', formTinggi);
+      if (formCuaca) fd.append('cuaca', formCuaca);
       if (formPanorama) fd.append('foto_panorama', formPanorama);
       if (formDraftMeter) fd.append('foto_draft_meter', formDraftMeter);
 
@@ -242,10 +266,13 @@ export default function WaterLevel() {
       else ket = 'Tetap 0 cm';
     }
 
+    const cuacaVal = latest?.cuaca || 'Cerah';
     const text = [
       '*WATER LEVEL MONITORING*',
       '',
-      `Lokasi : ${shareLocation}`,
+      'Lokasi Jetty :',
+      shareLocation,
+      `Cuaca : ${cuacaVal}`,
       `Tanggal : ${latest ? formatDate(latest.tanggal) : '-'} (${latest ? latest.jam : '-'})`,
       '',
       `Tinggi Air Hari ini : ${latest ? latest.tinggi : '-'} cm`,
@@ -255,6 +282,7 @@ export default function WaterLevel() {
 
     return {
       location: shareLocation,
+      cuaca: cuacaVal,
       latest,
       yesterday,
       diff,
@@ -321,6 +349,7 @@ export default function WaterLevel() {
           r.tanggal.toLowerCase().includes(q) ||
           r.jam.toLowerCase().includes(q) ||
           r.lokasi.toLowerCase().includes(q) ||
+          (r.cuaca && r.cuaca.toLowerCase().includes(q)) ||
           String(r.tinggi).includes(q),
       );
     }
@@ -338,6 +367,9 @@ export default function WaterLevel() {
       } else if (sortField === 'lokasi') {
         aVal = a.lokasi;
         bVal = b.lokasi;
+      } else if (sortField === 'cuaca') {
+        aVal = a.cuaca || '';
+        bVal = b.cuaca || '';
       } else if (sortField === 'tinggi') {
         aVal = a.tinggi;
         bVal = b.tinggi;
@@ -360,7 +392,9 @@ export default function WaterLevel() {
     return processedTableData.slice(start, start + pageSize);
   }, [processedTableData, currentPage, pageSize]);
 
-  const handleSort = (field: 'tanggal' | 'jam' | 'lokasi' | 'tinggi' | 'status') => {
+  const handleSort = (
+    field: 'tanggal' | 'jam' | 'lokasi' | 'cuaca' | 'tinggi' | 'status',
+  ) => {
     if (sortField === field) {
       setSortDirection((prev) => (prev === 'asc' ? 'desc' : 'asc'));
     } else {
@@ -752,11 +786,11 @@ export default function WaterLevel() {
                   />
                 </th>
                 <th
-                  style={{ width: '14%', cursor: 'pointer' }}
+                  style={{ width: '13%', cursor: 'pointer' }}
                   onClick={() => handleSort('lokasi')}
                   title="Klik untuk mengurutkan lokasi"
                 >
-                  Lokasi{' '}
+                  Lokasi Jetty{' '}
                   <i
                     className={`bi font-11 ml-1 ${
                       sortField === 'lokasi'
@@ -768,7 +802,23 @@ export default function WaterLevel() {
                   />
                 </th>
                 <th
-                  style={{ width: '14%', cursor: 'pointer' }}
+                  style={{ width: '10%', cursor: 'pointer' }}
+                  onClick={() => handleSort('cuaca')}
+                  title="Klik untuk mengurutkan cuaca"
+                >
+                  Cuaca{' '}
+                  <i
+                    className={`bi font-11 ml-1 ${
+                      sortField === 'cuaca'
+                        ? sortDirection === 'asc'
+                          ? 'bi-sort-alpha-down text-primary'
+                          : 'bi-sort-alpha-up text-primary'
+                        : 'bi-arrow-down-up text-muted'
+                    }`}
+                  />
+                </th>
+                <th
+                  style={{ width: '12%', cursor: 'pointer' }}
                   onClick={() => handleSort('tinggi')}
                   title="Klik untuk mengurutkan ketinggian air"
                 >
@@ -784,7 +834,7 @@ export default function WaterLevel() {
                   />
                 </th>
                 <th
-                  style={{ width: '12%', cursor: 'pointer' }}
+                  style={{ width: '11%', cursor: 'pointer' }}
                   onClick={() => handleSort('status')}
                   title="Klik untuk mengurutkan status"
                 >
@@ -797,15 +847,15 @@ export default function WaterLevel() {
                     }`}
                   />
                 </th>
-                <th style={{ width: '13%' }}>Panorama</th>
-                <th style={{ width: '13%' }}>Draft Meter</th>
+                <th style={{ width: '12%' }}>Panorama</th>
+                <th style={{ width: '12%' }}>Draft Meter</th>
                 <th style={{ width: '10%' }} className="text-center">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={8} className="text-center py-4 text-muted">
+                  <td colSpan={9} className="text-center py-4 text-muted">
                     {loading ? 'Mengambil data...' : 'Tidak ada riwayat pengukuran.'}
                   </td>
                 </tr>
@@ -825,12 +875,21 @@ export default function WaterLevel() {
                         </span>
                       </td>
                       <td>
+                        <div className="font-10 text-muted font-weight-bold text-uppercase" style={{ letterSpacing: 0.5 }}>
+                          Lokasi Jetty
+                        </div>
                         <span
                           className={`badge ${
                             row.lokasi === 'PT. MB' ? 'badge-success' : 'badge-primary'
-                          } px-2 py-1`}
+                          } px-2 py-1 font-12 mt-1`}
                         >
                           {row.lokasi}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge badge-light border px-2 py-1 font-12 d-inline-flex align-items-center">
+                          <i className="bi bi-cloud-sun mr-1 text-warning" />
+                          {row.cuaca || '-'}
                         </span>
                       </td>
                       <td>
@@ -1037,7 +1096,7 @@ export default function WaterLevel() {
                     </div>
                     <div className="col-md-6 form-group">
                       <label className="font-weight-bold font-13">
-                        Lokasi <span className="text-danger">*</span>
+                        Lokasi Jetty (PT) <span className="text-danger">*</span>
                       </label>
                       <select
                         className="form-control"
@@ -1048,6 +1107,26 @@ export default function WaterLevel() {
                         <option value="PT. MB">PT. MB</option>
                         <option value="PT. SRI">PT. SRI</option>
                       </select>
+                    </div>
+                    <div className="col-md-6 form-group">
+                      <label className="font-weight-bold font-13">
+                        Cuaca <span className="text-danger">*</span>
+                      </label>
+                      <select
+                        className="form-control"
+                        value={formCuaca}
+                        onChange={(e) => setFormCuaca(e.target.value)}
+                        required
+                      >
+                        {cuacaOptions.map((opt) => (
+                          <option key={opt} value={opt}>
+                            {opt}
+                          </option>
+                        ))}
+                      </select>
+                      <small className="text-muted font-11">
+                        Sumber opsi: Database Cuaca (EAV)
+                      </small>
                     </div>
                     <div className="col-md-6 form-group">
                       <label className="font-weight-bold font-13">
@@ -1277,11 +1356,26 @@ export default function WaterLevel() {
                           style={{ fontSize: 26, color: '#0a53be', marginRight: 10 }}
                         />
                         <div>
-                          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: 0.5 }}>
-                            LOKASI
+                          <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                            LOKASI JETTY
                           </div>
                           <div style={{ fontSize: 20, color: '#0f172a', fontWeight: 800 }}>
                             {shareLocation}
+                          </div>
+                        </div>
+                      </div>
+
+                      <div style={{ display: 'flex', alignItems: 'center' }}>
+                        <i
+                          className="bi bi-cloud-sun-fill"
+                          style={{ fontSize: 26, color: '#f59e0b', marginRight: 10 }}
+                        />
+                        <div>
+                          <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
+                            CUACA
+                          </div>
+                          <div style={{ fontSize: 20, color: '#0f172a', fontWeight: 800 }}>
+                            {shareData.latest?.cuaca || 'Cerah'}
                           </div>
                         </div>
                       </div>
@@ -1292,7 +1386,7 @@ export default function WaterLevel() {
                           style={{ fontSize: 26, color: '#0a53be', marginRight: 10 }}
                         />
                         <div>
-                          <div style={{ fontSize: 11, color: '#64748b', fontWeight: 700, letterSpacing: 0.5 }}>
+                          <div style={{ fontSize: 10, color: '#64748b', fontWeight: 700, letterSpacing: 0.5, textTransform: 'uppercase' }}>
                             TANGGAL
                           </div>
                           <div style={{ fontSize: 20, color: '#0f172a', fontWeight: 800 }}>
@@ -1701,8 +1795,12 @@ export default function WaterLevel() {
                   style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13 }}
                 >
                   <div className="d-flex justify-content-between py-1 border-bottom">
-                    <span className="text-muted">Lokasi:</span>
+                    <span className="text-muted">Lokasi Jetty:</span>
                     <strong className="text-dark">{deleteTarget.lokasi}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between py-1 border-bottom">
+                    <span className="text-muted">Cuaca:</span>
+                    <strong className="text-dark">{deleteTarget.cuaca || '-'}</strong>
                   </div>
                   <div className="d-flex justify-content-between py-1 border-bottom">
                     <span className="text-muted">Tanggal:</span>
@@ -1788,8 +1886,19 @@ function LocationCardItem({
   return (
     <div>
       <div className="d-flex justify-content-between align-items-center px-3 py-2 border-bottom bg-light">
-        <span className="font-weight-bold text-dark font-15">{title}</span>
-        <span className="text-muted font-11">{label}</span>
+        <div>
+          <div className="font-11 text-muted text-uppercase font-weight-bold" style={{ letterSpacing: 0.5 }}>
+            <i className="bi bi-geo-alt-fill text-danger mr-1" />Lokasi Jetty
+          </div>
+          <div className="font-weight-bold text-dark font-16">{title}</div>
+        </div>
+        <div className="text-right">
+          <span className="badge badge-info px-2 py-1 font-12 font-weight-600 mb-1 d-inline-flex align-items-center">
+            <i className="bi bi-cloud-sun mr-1 font-13" />
+            {latest?.cuaca || 'Cerah'}
+          </span>
+          <div className="text-muted font-11">{label}</div>
+        </div>
       </div>
 
       {/* Image box with 16:9 ratio */}
