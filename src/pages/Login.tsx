@@ -90,7 +90,8 @@ export default function Login() {
   }
 
   function waLink() {
-    const pesan = `Hallo saya ${wa?.name} | NRP ${wa?.nrp} | Meminta validasi login ke APP Mitrabarito. Mohon bantuannya. Terima kasih.`;
+    const displayName = wa?.name || name || 'Karyawan';
+    const pesan = `Hallo saya ${displayName} | NRP ${wa?.nrp} | Meminta validasi login ke APP Mitrabarito. Mohon bantuannya. Terima kasih.`;
     return `https://wa.me/${wa?.waNumber}?text=${encodeURIComponent(pesan)}`;
   }
 
@@ -227,7 +228,7 @@ export default function Login() {
                 display: 'flex',
                 alignItems: 'center',
                 justifyContent: 'center',
-                margin: '0 auto 16px',
+                margin: '0 auto 14px',
                 fontSize: '28px',
                 color: '#fff',
                 boxShadow: '0 8px 20px rgba(34, 197, 94, 0.35)',
@@ -235,16 +236,51 @@ export default function Login() {
             >
               ✓
             </div>
+            <h4 style={{ fontSize: '17px', fontWeight: 700, color: '#0f172a', marginBottom: '4px' }}>
+              Hallo, {wa.name || name}!
+            </h4>
+            <div style={{ fontSize: '13px', fontWeight: 600, color: '#2563eb', marginBottom: '16px' }}>
+              NRP: {wa.nrp}
+            </div>
             <p
               style={{
                 fontSize: '13px',
                 color: '#64748b',
                 lineHeight: 1.6,
-                marginBottom: '20px',
+                marginBottom: '16px',
               }}
             >
-              Demi keamanan akun, silakan kirim pesan otomatis ke WhatsApp admin melalui tombol di bawah.
+              Demi keamanan akun, silakan kirim pesan otomatis ke WhatsApp admin melalui tombol di bawah untuk mendapatkan link pembuatan PIN baru.
             </p>
+            <div
+              style={{
+                background: '#f8fafc',
+                border: '1px solid #e2e8f0',
+                borderRadius: '12px',
+                padding: '12px',
+                fontSize: '12px',
+                color: '#334155',
+                textAlign: 'left',
+                marginBottom: '20px',
+                lineHeight: 1.5,
+              }}
+            >
+              <div
+                style={{
+                  fontWeight: 700,
+                  color: '#64748b',
+                  marginBottom: '4px',
+                  textTransform: 'uppercase',
+                  fontSize: '10px',
+                  letterSpacing: '0.5px',
+                }}
+              >
+                Pesan WhatsApp Otomatis:
+              </div>
+              <div style={{ fontStyle: 'italic', color: '#0f172a', fontWeight: 500 }}>
+                &ldquo;Hallo saya {wa.name || name} | NRP {wa.nrp} | Meminta validasi login ke APP Mitrabarito. Mohon bantuannya. Terima kasih.&rdquo;
+              </div>
+            </div>
             <a
               href={waLink()}
               target="_blank"
