@@ -1387,7 +1387,8 @@ export default function Authority() {
                     value={selectedNrp}
                     onChange={(nrp) => {
                       setSelectedNrp(nrp);
-                      const matched = users.find((u) => u.nrp === nrp);
+                      const norm = (s: string) => (s || '').replace(/[\/\-_]/g, '').trim().toUpperCase();
+                      const matched = users.find((u) => u.nrp === nrp || norm(u.nrp) === norm(nrp));
                       if (matched) {
                         setUserFeatureForm((f) => ({ ...f, userId: String(matched.id) }));
                       } else {
@@ -1398,9 +1399,14 @@ export default function Authority() {
                     placeholder="Ketik Nama, NRP, atau Jabatan Karyawan..."
                   />
                   {selectedNrp && !userFeatureForm.userId && (
-                    <div className="alert alert-warning py-1 px-2 mt-2 font-12">
-                      <i className="bi bi-exclamation-triangle-fill mr-1"></i>
-                      Karyawan ini belum memiliki akun user login di tabel User. Pastikan akun user login terdaftar.
+                    <div className="alert alert-warning py-2 px-3 mt-2 font-12 d-flex align-items-center justify-content-between">
+                      <div>
+                        <i className="bi bi-exclamation-triangle-fill mr-1 text-warning"></i>
+                        Karyawan ini belum memiliki akun user login di tabel User.
+                      </div>
+                      <a href="/database/user" className="btn btn-xs btn-outline-primary ml-2 font-11">
+                        <i className="bi bi-person-plus-fill mr-1"></i> Buka Manajemen User
+                      </a>
                     </div>
                   )}
                 </div>

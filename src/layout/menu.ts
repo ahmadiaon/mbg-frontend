@@ -55,7 +55,7 @@ export const MENU: MenuItem[] = [
     children: [
       { label: 'Form', path: '/database/form', implemented: true },
       { label: 'Data', path: '/database/data', implemented: true },
-      { label: 'User', path: '/database/user', implemented: false },
+      { label: 'User', path: '/database/user', implemented: true },
       { label: 'Menu', path: '/database/menu', implemented: false },
       { label: 'Otoritas', path: '/authority', implemented: true },
     ],

@@ -464,6 +464,31 @@ export interface UserFeatureAccessItem {
   feature: FeatureDefinitionItem;
 }
 
+export interface UserManagementItem {
+  id: number;
+  nrp: string;
+  name: string;
+  email: string | null;
+  role: number;
+  active: boolean;
+  hasPin: boolean;
+  hasPassword: boolean;
+  nikKtp: string | null;
+  jabatan: string | null;
+  perusahaan: string | null;
+  statusKerja: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface UnregisteredEmployeeItem {
+  nrp: string;
+  nama: string;
+  nikKtp: string | null;
+  jabatan: string | null;
+  perusahaan: string | null;
+}
+
 export const authorityAdminApi = {
   roles: () => api<RoleLevelItem[]>('/access/admin/roles'),
   features: () => api<FeatureDefinitionItem[]>('/access/admin/features'),
@@ -473,6 +498,28 @@ export const authorityAdminApi = {
       body: JSON.stringify(body),
     }),
   users: () => api<LoginUser[]>('/access/admin/users'),
+  usersManagement: () => api<UserManagementItem[]>('/access/admin/users/management'),
+  unregisteredEmployees: () => api<UnregisteredEmployeeItem[]>('/access/admin/users/unregistered'),
+  resetUserPin: (id: number, nik?: string) =>
+    api<{ success: boolean; message: string; nikKtp: string }>(`/access/admin/users/${id}/reset-pin`, {
+      method: 'POST',
+      body: JSON.stringify({ nik }),
+    }),
+  setUserPin: (id: number, pin: string) =>
+    api<{ success: boolean; message: string }>(`/access/admin/users/${id}/set-pin`, {
+      method: 'POST',
+      body: JSON.stringify({ pin }),
+    }),
+  registerEmployeeUser: (body: { nrp: string; role?: number; nik?: string }) =>
+    api<LoginUser>('/access/admin/users/register-employee', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateUserManagement: (id: number, body: Record<string, unknown>) =>
+    api<LoginUser>(`/access/admin/users/${id}/management`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
   employmentStatuses: () => api<EmploymentStatusItem[]>('/access/admin/employment-statuses'),
   updateFeature: (code: string, body: Record<string, unknown>) =>
     api<FeatureDefinitionItem>(`/access/admin/features/${encodeURIComponent(code)}`, {

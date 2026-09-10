@@ -9,6 +9,7 @@ import MySlip from './pages/MySlip';
 import MbgLink from './pages/MbgLink';
 import DatabaseForm from './pages/DatabaseForm';
 import DatabaseData from './pages/DatabaseData';
+import DatabaseUser from './pages/DatabaseUser';
 import Authority from './pages/Authority';
 import DynamicFeature from './pages/DynamicFeature';
 import { EavProvider } from './context/EavContext';
@@ -36,6 +37,7 @@ export default function App() {
         <Route path="/my-slip" element={<MySlip />} />
         <Route path="/database/form" element={<DatabaseForm />} />
         <Route path="/database/data" element={<DatabaseData />} />
+        <Route path="/database/user" element={<DatabaseUser />} />
         <Route path="/authority" element={<Authority />} />
         <Route path="*" element={<DynamicFeature />} />
       </Route>
