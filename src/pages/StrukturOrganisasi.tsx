@@ -145,6 +145,12 @@ export default function StrukturOrganisasi() {
   const [deptFilter, setDeptFilter] = useState('ALL');
   const [search, setSearch] = useState('');
 
+  // Tabel Jabatan & Kelola Grade di Atas Bagan Pohon
+  const [showTable, setShowTable] = useState(true);
+  const [tableSearch, setTableSearch] = useState('');
+  const [tableGradeFilter, setTableGradeFilter] = useState<string>('ALL');
+  const [inlineGradeBusy, setInlineGradeBusy] = useState<number | null>(null);
+
   // Modals & Action Target
   const [activeModal, setActiveModal] = useState<
     'quick-grade' | 'assign-person' | 'edit-node' | 'create-child' | 'delete' | null
@@ -392,6 +398,52 @@ export default function StrukturOrganisasi() {
       (node.employeeNrp && node.employeeNrp.toLowerCase().includes(q))
     );
   }
+
+  // Action: Ubah Grade langsung secara instan dari Tabel Jabatan
+  async function handleInlineGradeChange(nodeId: number, newGrade: number) {
+    setInlineGradeBusy(nodeId);
+    try {
+      await organizationApi.updateNode(nodeId, {
+        grade: Number(newGrade),
+        syncUserRole: true,
+      });
+      const target = flatPositions.find((p) => p.id === nodeId);
+      notify(`Grade posisi "${target?.title || nodeId}" berhasil diubah menjadi Grade ${newGrade}`);
+      await loadData();
+    } catch (err: any) {
+      alert('Gagal mengubah grade: ' + (err?.message || 'Error'));
+    } finally {
+      setInlineGradeBusy(null);
+    }
+  }
+
+  // Filter posisi khusus untuk Tabel Jabatan di atas bagan pohon
+  const filteredTablePositions = useMemo(() => {
+    let list = [...flatPositions];
+    if (companyFilter !== 'ALL') {
+      list = list.filter((p) => p.company === companyFilter);
+    }
+    if (deptFilter !== 'ALL') {
+      list = list.filter((p) => (p.department || '').toUpperCase() === deptFilter.toUpperCase());
+    }
+    if (tableGradeFilter !== 'ALL') {
+      const g = Number(tableGradeFilter);
+      list = list.filter((p) => p.grade === g);
+    }
+    if (tableSearch.trim()) {
+      const q = tableSearch.toLowerCase();
+      list = list.filter(
+        (p) =>
+          p.title.toLowerCase().includes(q) ||
+          (p.employeeName && p.employeeName.toLowerCase().includes(q)) ||
+          (p.employeeNrp && p.employeeNrp.toLowerCase().includes(q)) ||
+          (p.department && p.department.toLowerCase().includes(q)) ||
+          (p.division && p.division.toLowerCase().includes(q)),
+      );
+    }
+    // Urutkan default: Grade tertinggi ke terendah, lalu alfabet nama posisi
+    return list.sort((a, b) => b.grade - a.grade || a.title.localeCompare(b.title));
+  }, [flatPositions, companyFilter, deptFilter, tableGradeFilter, tableSearch]);
 
   // RECURSIVE NODE RENDERER (Clean DeskApp Card & Mathematical Connectors)
   function renderTreeNode(node: OrgNodeItem, level = 0) {
@@ -1044,6 +1096,311 @@ export default function StrukturOrganisasi() {
             </span>
           </div>
         </div>
+      </div>
+
+      {/* TABEL JABATAN & MANAJEMEN GRADE (DI ATAS BAGAN POHON) */}
+      <div className="card-box pd-20 mb-30 shadow-sm border">
+        <div className="d-flex align-items-center justify-content-between flex-wrap pb-3 mb-3 border-bottom">
+          <div className="d-flex align-items-center mb-2 mb-md-0">
+            <div
+              className="d-flex align-items-center justify-content-center bg-primary text-white rounded-circle mr-3 shadow-xs"
+              style={{ width: '38px', height: '38px', fontSize: '18px' }}
+            >
+              <i className="bi bi-table" />
+            </div>
+            <div>
+              <h4 className="h5 text-primary mb-0 weight-700">
+                Tabel Jabatan & Manajemen Grade
+              </h4>
+              <p className="font-12 text-muted mb-0">
+                Ubah tingkatan Grade (Level 1–15) secara langsung melalui dropdown atau kelola pejabat struktural
+              </p>
+            </div>
+          </div>
+
+          <div className="d-flex align-items-center flex-wrap">
+            <span className="badge badge-pill badge-info px-3 py-2 font-12 mr-2 mb-1">
+              Menampilkan {filteredTablePositions.length} dari {flatPositions.length} Posisi
+            </span>
+            {editMode && (
+              <button
+                type="button"
+                onClick={() => handleOpenCreateChild(null)}
+                className="btn btn-sm btn-primary mr-2 mb-1"
+                title="Tambah Jabatan / Posisi Baru"
+              >
+                <i className="bi bi-plus-circle mr-1" /> Tambah Posisi Baru
+              </button>
+            )}
+            <button
+              type="button"
+              onClick={() => setShowTable(!showTable)}
+              className="btn btn-sm btn-outline-secondary mb-1"
+              title={showTable ? 'Lipat Tabel Jabatan' : 'Buka Tabel Jabatan'}
+            >
+              <i className={`bi ${showTable ? 'bi-chevron-up' : 'bi-chevron-down'} mr-1`} />
+              {showTable ? 'Sembunyikan Tabel' : 'Tampilkan Tabel'}
+            </button>
+          </div>
+        </div>
+
+        {showTable && (
+          <>
+            {/* Filter Cepat Tabel */}
+            <div className="row align-items-center mb-3">
+              <div className="col-md-6 mb-2 mb-md-0">
+                <div className="input-group input-group-sm">
+                  <div className="input-group-prepend">
+                    <span className="input-group-text bg-light">
+                      <i className="bi bi-search font-12" />
+                    </span>
+                  </div>
+                  <input
+                    type="text"
+                    value={tableSearch}
+                    onChange={(e) => setTableSearch(e.target.value)}
+                    placeholder="Cari cepat nama jabatan, pejabat, atau NRP di tabel..."
+                    className="form-control form-control-sm"
+                  />
+                  {tableSearch && (
+                    <div className="input-group-append">
+                      <button
+                        type="button"
+                        onClick={() => setTableSearch('')}
+                        className="btn btn-outline-secondary btn-sm"
+                        title="Hapus pencarian"
+                      >
+                        ✕
+                      </button>
+                    </div>
+                  )}
+                </div>
+              </div>
+
+              <div className="col-md-6 d-flex align-items-center justify-content-md-end flex-wrap">
+                <div className="d-flex align-items-center mb-1">
+                  <label className="font-12 weight-600 text-muted mr-2 mb-0">FILTER GRADE:</label>
+                  <select
+                    value={tableGradeFilter}
+                    onChange={(e) => setTableGradeFilter(e.target.value)}
+                    className="custom-select custom-select-sm"
+                    style={{ width: 'auto', minWidth: '170px' }}
+                  >
+                    <option value="ALL">Semua Grade (1–15)</option>
+                    {grades.map((g) => (
+                      <option key={g.level} value={g.level}>
+                        Grade {g.level} ({g.name})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+
+            {/* Table Element with Sticky Header */}
+            <div
+              className="table-responsive border rounded"
+              style={{ maxHeight: '460px', overflowY: 'auto' }}
+            >
+              <table className="table table-striped table-hover table-sm table-bordered mb-0">
+                <thead className="thead-light font-12 sticky-top" style={{ zIndex: 2 }}>
+                  <tr>
+                    <th style={{ width: '45px' }} className="text-center">#</th>
+                    <th style={{ minWidth: '220px' }}>Nama Posisi / Jabatan</th>
+                    <th style={{ minWidth: '150px' }}>Perusahaan & Dept</th>
+                    <th style={{ minWidth: '170px' }}>Atasan Langsung</th>
+                    <th style={{ minWidth: '270px' }}>Grade / Role Level (Ubah Langsung)</th>
+                    <th style={{ minWidth: '210px' }}>Pejabat Aktif</th>
+                    {editMode && <th style={{ width: '130px' }} className="text-center">Aksi</th>}
+                  </tr>
+                </thead>
+                <tbody className="font-12">
+                  {filteredTablePositions.length === 0 ? (
+                    <tr>
+                      <td colSpan={editMode ? 7 : 6} className="text-center py-4 text-muted">
+                        <i className="bi bi-inbox font-24 d-block mb-1" />
+                        Tidak ada posisi jabatan yang sesuai dengan filter.
+                      </td>
+                    </tr>
+                  ) : (
+                    filteredTablePositions.map((pos, idx) => {
+                      const parentNode = pos.parentId
+                        ? flatPositions.find((item) => item.id === pos.parentId)
+                        : null;
+                      const gStyle = getGradeStyle(pos.grade);
+                      const isBusy = inlineGradeBusy === pos.id;
+
+                      return (
+                        <tr key={pos.id} className={isBusy ? 'table-warning' : ''}>
+                          <td className="text-center text-muted weight-600 align-middle">
+                            {idx + 1}
+                          </td>
+                          <td className="align-middle">
+                            <div className="font-13 weight-700 text-dark">
+                              {pos.title}
+                            </div>
+                            {pos.division && (
+                              <small className="text-muted d-block">
+                                Divisi: {pos.division}
+                              </small>
+                            )}
+                          </td>
+                          <td className="align-middle">
+                            <span className="badge badge-pill badge-secondary mr-1 font-10">
+                              {pos.company || 'MBG'}
+                            </span>
+                            <span className="weight-600 text-dark font-11">
+                              {pos.department || '-'}
+                            </span>
+                          </td>
+                          <td className="align-middle">
+                            {parentNode ? (
+                              <div className="font-12 text-dark weight-600">
+                                <i className="bi bi-arrow-return-right text-muted mr-1 font-11" />
+                                {parentNode.title}
+                              </div>
+                            ) : (
+                              <span className="badge badge-light border text-muted font-11">
+                                👑 Puncak (Top Level)
+                              </span>
+                            )}
+                          </td>
+                          <td className="align-middle">
+                            <div className="d-flex align-items-center flex-wrap">
+                              <span
+                                className="badge badge-pill font-11 px-2 py-1 mr-2 text-white shadow-xs"
+                                style={gStyle.badgeStyle}
+                              >
+                                Level {pos.grade}
+                              </span>
+
+                              {editMode ? (
+                                <div className="d-inline-flex align-items-center">
+                                  <select
+                                    value={pos.grade}
+                                    disabled={isBusy}
+                                    onChange={(e) =>
+                                      handleInlineGradeChange(pos.id, Number(e.target.value))
+                                    }
+                                    className="custom-select custom-select-sm font-weight-bold"
+                                    style={{
+                                      width: '180px',
+                                      fontSize: '11px',
+                                      borderColor: gStyle.accentColor,
+                                    }}
+                                    title="Pilih untuk langsung mengubah Grade posisi ini"
+                                  >
+                                    {grades.map((g) => (
+                                      <option key={g.level} value={g.level}>
+                                        Grade {g.level} — {g.name}
+                                      </option>
+                                    ))}
+                                  </select>
+                                  {isBusy ? (
+                                    <span className="spinner-border spinner-border-sm text-primary ml-2" />
+                                  ) : (
+                                    <button
+                                      type="button"
+                                      onClick={() => handleOpenQuickGrade(pos)}
+                                      className="btn btn-outline-warning btn-xs ml-1"
+                                      title="Detail Grade & Opsi Sinkronisasi Akun User"
+                                    >
+                                      <i className="bi bi-lightning-charge" />
+                                    </button>
+                                  )}
+                                </div>
+                              ) : (
+                                <span className="font-12 weight-600 text-dark">
+                                  {gStyle.label}
+                                </span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="align-middle">
+                            <div className="d-flex align-items-center justify-content-between">
+                              <div className="d-flex align-items-center text-truncate" style={{ maxWidth: '170px' }}>
+                                <div
+                                  className="org-avatar mr-2"
+                                  style={{
+                                    width: '26px',
+                                    height: '26px',
+                                    fontSize: '10px',
+                                    backgroundColor: pos.employeeName ? gStyle.accentColor : '#e9ecef',
+                                    color: pos.employeeName ? '#ffffff' : '#6c757d',
+                                  }}
+                                >
+                                  {pos.employeeName
+                                    ? pos.employeeName.split(' ').map((n) => n[0]).slice(0, 2).join('')
+                                    : '?'}
+                                </div>
+                                <div className="text-truncate">
+                                  {pos.employeeName ? (
+                                    <>
+                                      <div className="font-12 weight-600 text-dark text-truncate">
+                                        {pos.employeeName}
+                                      </div>
+                                      <div className="font-10 text-muted">{pos.employeeNrp}</div>
+                                    </>
+                                  ) : (
+                                    <span className="font-11 text-muted font-italic">(Lowong)</span>
+                                  )}
+                                </div>
+                              </div>
+                              {editMode && (
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenAssignPerson(pos)}
+                                  className={`btn btn-xs ml-1 ${
+                                    pos.employeeName ? 'btn-outline-primary' : 'btn-outline-success'
+                                  }`}
+                                  title={pos.employeeName ? 'Ganti Pejabat' : 'Tugaskan Karyawan'}
+                                >
+                                  <i className={`bi ${pos.employeeName ? 'bi-pencil' : 'bi-person-plus'}`} />
+                                </button>
+                              )}
+                            </div>
+                          </td>
+                          {editMode && (
+                            <td className="text-center align-middle">
+                              <div className="btn-group btn-group-sm">
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenCreateChild(pos)}
+                                  className="btn btn-outline-primary btn-xs px-2"
+                                  title="Tambah Bawahan untuk Posisi Ini"
+                                >
+                                  <i className="bi bi-plus-lg" />
+                                </button>
+                                <button
+                                  type="button"
+                                  onClick={() => handleOpenEditNode(pos)}
+                                  className="btn btn-outline-secondary btn-xs px-2"
+                                  title="Edit Detail Posisi"
+                                >
+                                  <i className="bi bi-pencil" />
+                                </button>
+                                {pos.grade < 14 && (
+                                  <button
+                                    type="button"
+                                    onClick={() => handleOpenDelete(pos)}
+                                    className="btn btn-outline-danger btn-xs px-2"
+                                    title="Hapus Posisi"
+                                  >
+                                    <i className="bi bi-trash" />
+                                  </button>
+                                )}
+                              </div>
+                            </td>
+                          )}
+                        </tr>
+                      );
+                    })
+                  )}
+                </tbody>
+              </table>
+            </div>
+          </>
+        )}
       </div>
 
       {/* THE PROPORTIONAL ORGANIGRAM TREE CANVAS */}
