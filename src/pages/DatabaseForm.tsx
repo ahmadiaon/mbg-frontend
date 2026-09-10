@@ -6,6 +6,7 @@ import {
   type BuilderField,
   type PersetujuanStep,
   type EavRecord,
+  type EntityDeletionImpact,
 } from '../api';
 import { slugify } from '../profile';
 import DataTable from '../components/DataTable';
@@ -110,6 +111,13 @@ export default function DatabaseForm() {
   const [persetujuanConfigOpen, setPersetujuanConfigOpen] = useState<Record<number, boolean>>({});
   const [existingFieldCodes, setExistingFieldCodes] = useState<Set<string>>(new Set());
   const fieldFormRef = useRef<HTMLDivElement>(null);
+
+  // State untuk konfirmasi hapus form & analisis dampak
+  const [deleteTarget, setDeleteTarget] = useState<{ code: string; name: string } | null>(null);
+  const [impactData, setImpactData] = useState<EntityDeletionImpact | null>(null);
+  const [loadingImpact, setLoadingImpact] = useState(false);
+  const [impactError, setImpactError] = useState('');
+  const [deleting, setDeleting] = useState(false);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
 
@@ -331,19 +339,36 @@ export default function DatabaseForm() {
     }
   }
 
-  async function destroyForm(code: string) {
-    if (!window.confirm(`Hapus tabel "${code}" beserta seluruh datanya?`)) return;
-    setBusy(true);
-    setError('');
+  async function openDeleteModal(code: string, formName: string) {
+    setDeleteTarget({ code, name: formName });
+    setImpactData(null);
+    setImpactError('');
+    setLoadingImpact(true);
     try {
-      await eavApi.deleteEntity(code);
-      if (editCode === code) resetForm();
+      const impact = await eavApi.getDeletionImpact(code);
+      setImpactData(impact);
+    } catch (err) {
+      setImpactError(err instanceof Error ? err.message : 'Gagal menganalisis dampak penghapusan');
+    } finally {
+      setLoadingImpact(false);
+    }
+  }
+
+  async function confirmDestroyForm() {
+    if (!deleteTarget) return;
+    setDeleting(true);
+    setImpactError('');
+    try {
+      await eavApi.deleteEntity(deleteTarget.code);
+      if (editCode === deleteTarget.code) resetForm();
+      setDeleteTarget(null);
+      setImpactData(null);
       await invalidateSchema();
       await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : 'Gagal menghapus');
+    } catch (err) {
+      setImpactError(err instanceof Error ? err.message : 'Gagal menghapus form');
     } finally {
-      setBusy(false);
+      setDeleting(false);
     }
   }
 
@@ -1064,7 +1089,7 @@ export default function DatabaseForm() {
                     </button>
                     <button
                       className="btn btn-sm btn-outline-danger"
-                      onClick={() => destroyForm(t.code)}
+                      onClick={() => openDeleteModal(t.code, t.name)}
                       title="Hapus"
                     >
                       <i className="bi bi-trash"></i>
@@ -1081,6 +1106,253 @@ export default function DatabaseForm() {
           />
         )}
       </div>
+
+      {/* ===== Modal Konfirmasi Hapus Form & Analisis Dampak ===== */}
+      {deleteTarget && (
+        <div
+          className="modal fade show"
+          style={{ display: 'block', backgroundColor: 'rgba(0,0,0,0.5)', zIndex: 1050 }}
+          tabIndex={-1}
+          role="dialog"
+        >
+          <div className="modal-dialog modal-lg modal-dialog-centered" role="document">
+            <div className="modal-content shadow">
+              <div className="modal-header bg-light">
+                <h5 className="modal-title text-danger d-flex align-items-center">
+                  <i className="bi bi-exclamation-triangle-fill mr-2"></i>
+                  Konfirmasi Hapus Form
+                </h5>
+                <button
+                  type="button"
+                  className="close"
+                  aria-label="Close"
+                  disabled={deleting}
+                  onClick={() => {
+                    if (!deleting) {
+                      setDeleteTarget(null);
+                      setImpactData(null);
+                    }
+                  }}
+                >
+                  <span aria-hidden="true">&times;</span>
+                </button>
+              </div>
+
+              <div className="modal-body">
+                <div className="mb-3">
+                  <p className="font-15 mb-1">
+                    Anda akan menghapus form: <strong className="text-dark">{deleteTarget.name}</strong>{' '}
+                    <code className="badge badge-secondary">{deleteTarget.code}</code>
+                  </p>
+                </div>
+
+                {impactError && (
+                  <div className="alert alert-danger font-14">
+                    <i className="bi bi-exclamation-circle mr-2"></i>
+                    {impactError}
+                  </div>
+                )}
+
+                {loadingImpact ? (
+                  <div className="text-center py-4">
+                    <div className="spinner-border text-primary" role="status">
+                      <span className="sr-only">Menganalisis dampak penghapusan...</span>
+                    </div>
+                    <p className="mt-2 text-muted font-14">
+                      Sedang memeriksa data, sub-tabel, relasi luar, dan alur persetujuan...
+                    </p>
+                  </div>
+                ) : impactData ? (
+                  <>
+                    {!impactData.hasImpact ? (
+                      <div className="alert alert-success d-flex align-items-start mb-3">
+                        <i className="bi bi-shield-check font-28 mr-3 text-success"></i>
+                        <div>
+                          <div className="weight-600 font-15 text-success mb-1">
+                            Tidak Ada Data atau Relasi Lain yang Terdampak
+                          </div>
+                          <div className="font-13 text-muted">
+                            Form ini belum memiliki record data tersimpan, tidak memiliki sub-tabel (child table), dan tidak sedang direferensikan oleh form lain. 
+                            Menghapus form ini hanya akan menghapus konfigurasi struktur form dan kolomnya.
+                          </div>
+                        </div>
+                      </div>
+                    ) : (
+                      <div className="alert alert-warning mb-3">
+                        <div className="d-flex align-items-center mb-1">
+                          <i className="bi bi-exclamation-triangle-fill font-20 mr-2 text-warning"></i>
+                          <strong className="font-14 text-dark">
+                            Perhatian: Penghapusan akan berdampak pada data dan relasi berikut!
+                          </strong>
+                        </div>
+                        <p className="font-13 text-secondary mb-0">
+                          Seluruh data input yang telah tersimpan pada tabel ini beserta sub-tabelnya akan terhapus secara permanen dan tidak dapat dipulihkan.
+                        </p>
+                      </div>
+                    )}
+
+                    {/* Ringkasan Statistik Dampak */}
+                    <div className="row mb-3 text-center">
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="p-2 border rounded bg-light">
+                          <div className="font-12 text-muted weight-500">Data Records</div>
+                          <div className={`font-20 weight-700 ${impactData.recordCount > 0 ? 'text-danger' : 'text-secondary'}`}>
+                            {impactData.recordCount}
+                          </div>
+                          <div className="font-11 text-muted">record terisi</div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="p-2 border rounded bg-light">
+                          <div className="font-12 text-muted weight-500">Field / Kolom</div>
+                          <div className="font-20 weight-700 text-dark">
+                            {impactData.fieldCount}
+                          </div>
+                          <div className="font-11 text-muted">kolom form</div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="p-2 border rounded bg-light">
+                          <div className="font-12 text-muted weight-500">Sub-Tabel (Child)</div>
+                          <div className={`font-20 weight-700 ${impactData.children.length > 0 ? 'text-danger' : 'text-secondary'}`}>
+                            {impactData.children.length}
+                          </div>
+                          <div className="font-11 text-muted">tabel turunan</div>
+                        </div>
+                      </div>
+                      <div className="col-md-3 col-6 mb-2">
+                        <div className="p-2 border rounded bg-light">
+                          <div className="font-12 text-muted weight-500">Referensi Luar</div>
+                          <div className={`font-20 weight-700 ${impactData.referencedBy.length > 0 ? 'text-warning' : 'text-secondary'}`}>
+                            {impactData.referencedBy.length}
+                          </div>
+                          <div className="font-11 text-muted">form lain</div>
+                        </div>
+                      </div>
+                    </div>
+
+                    {/* Rincian Child Tables jika ada */}
+                    {impactData.children.length > 0 && (
+                      <div className="card mb-3 border-danger">
+                        <div className="card-header bg-light py-2 text-danger weight-600 font-13 d-flex align-items-center">
+                          <i className="bi bi-diagram-3 mr-2"></i>
+                          Sub-Tabel Turunan yang Akan Ikut Terhapus ({impactData.children.length})
+                        </div>
+                        <div className="card-body p-0">
+                          <table className="table table-sm table-bordered mb-0 font-13">
+                            <thead className="thead-light">
+                              <tr>
+                                <th>Nama Tabel</th>
+                                <th>Kode</th>
+                                <th className="text-center">Jumlah Kolom</th>
+                                <th className="text-center">Jumlah Data</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {impactData.children.map((c) => (
+                                <tr key={c.code}>
+                                  <td className="weight-600">{c.name}</td>
+                                  <td><code>{c.code}</code></td>
+                                  <td className="text-center">{c.fieldCount} kolom</td>
+                                  <td className="text-center">
+                                    <span className={`badge ${c.recordCount > 0 ? 'badge-danger' : 'badge-secondary'}`}>
+                                      {c.recordCount} records
+                                    </span>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rincian Referensi Luar jika ada */}
+                    {impactData.referencedBy.length > 0 && (
+                      <div className="card mb-3 border-warning">
+                        <div className="card-header bg-light py-2 text-warning weight-600 font-13 d-flex align-items-center">
+                          <i className="bi bi-link-45deg mr-2"></i>
+                          Form Lain yang Mengambil Data dari Tabel ini ({impactData.referencedBy.length})
+                        </div>
+                        <div className="card-body p-0">
+                          <table className="table table-sm table-bordered mb-0 font-13">
+                            <thead className="thead-light">
+                              <tr>
+                                <th>Form Pengguna</th>
+                                <th>Field / Dropdown Pengambil Data</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {impactData.referencedBy.map((ref, idx) => (
+                                <tr key={idx}>
+                                  <td className="weight-600">
+                                    {ref.entityName} <code className="font-11 text-muted ml-1">({ref.entityCode})</code>
+                                  </td>
+                                  <td>
+                                    {ref.fieldName} <code className="font-11 text-muted ml-1">({ref.fieldCode})</code>
+                                  </td>
+                                </tr>
+                              ))}
+                            </tbody>
+                          </table>
+                          <div className="p-2 font-12 text-muted bg-light border-top">
+                            <i className="bi bi-info-circle mr-1"></i>
+                            Sumber dropdown (DARI-TABEL) pada form-form di atas akan di-reset atau tidak lagi menampilkan opsi dari tabel ini.
+                          </div>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Rincian Alur Persetujuan jika ada */}
+                    {(impactData.approvalConfigs > 0 || impactData.approvalDataCount > 0) && (
+                      <div className="p-2 mb-3 border rounded bg-light font-13">
+                        <i className="bi bi-check2-square mr-2 text-primary"></i>
+                        <strong>Alur & Riwayat Persetujuan:</strong> Menghapus{' '}
+                        <span className="badge badge-info">{impactData.approvalConfigs} langkah konfigurasi persetujuan</span>{' '}
+                        dan{' '}
+                        <span className="badge badge-warning">{impactData.approvalDataCount} riwayat persetujuan dokumen</span>{' '}
+                        terkait form ini.
+                      </div>
+                    )}
+                  </>
+                ) : null}
+              </div>
+
+              <div className="modal-footer bg-light">
+                <button
+                  type="button"
+                  className="btn btn-secondary"
+                  disabled={deleting}
+                  onClick={() => {
+                    setDeleteTarget(null);
+                    setImpactData(null);
+                  }}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-danger"
+                  disabled={deleting || loadingImpact}
+                  onClick={confirmDestroyForm}
+                >
+                  {deleting ? (
+                    <>
+                      <span className="spinner-border spinner-border-sm mr-2" role="status" aria-hidden="true"></span>
+                      Menghapus Form & Data...
+                    </>
+                  ) : (
+                    <>
+                      <i className="bi bi-trash mr-1"></i>
+                      Hapus Form & Seluruh Data
+                    </>
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

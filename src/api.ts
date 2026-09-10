@@ -154,6 +154,28 @@ export interface BuilderEntity {
   fields?: Record<string, BuilderField>;
 }
 
+export interface EntityDeletionImpact {
+  entityCode: string;
+  entityName: string;
+  recordCount: number;
+  fieldCount: number;
+  children: Array<{
+    code: string;
+    name: string;
+    recordCount: number;
+    fieldCount: number;
+  }>;
+  referencedBy: Array<{
+    entityCode: string;
+    entityName: string;
+    fieldCode: string;
+    fieldName: string;
+  }>;
+  approvalConfigs: number;
+  approvalDataCount: number;
+  hasImpact: boolean;
+}
+
 export interface PersetujuanStep {
   level: string;
   grade?: string;
@@ -244,6 +266,8 @@ export const eavApi = {
     }),
   deleteEntity: (code: string) =>
     api<{ message: string }>(`/eav/entities/${encodeURIComponent(code)}`, { method: 'DELETE' }),
+  getDeletionImpact: (code: string) =>
+    api<EntityDeletionImpact>(`/eav/entities/${encodeURIComponent(code)}/deletion-impact`),
 
   entityFields: (code: string) =>
     api<BuilderEntity>(`/eav/entities/${encodeURIComponent(code)}/fields`),
