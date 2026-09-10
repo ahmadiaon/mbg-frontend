@@ -360,7 +360,7 @@ export default function PhotoProfileCropperModal({
           <div className="modal-header bg-dark text-white py-3">
             <h5 className="modal-title text-white font-16 d-flex align-items-center">
               <i className="bi bi-crop mr-2 text-primary"></i>
-              Sesuaikan Foto Profil (Rasio 3 x 4)
+              Sesuaikan Foto 4 x 3 (Tinggi Lebih Panjang)
             </h5>
             <button
               type="button"
@@ -378,11 +378,11 @@ export default function PhotoProfileCropperModal({
               <div>
                 {faceDetected ? (
                   <span className="badge badge-success px-2 py-1 font-12">
-                    <i className="bi bi-person-check-fill mr-1"></i> Wajah Terdeteksi Otomatis (Posisi 3x4)
+                    <i className="bi bi-person-check-fill mr-1"></i> Wajah Terdeteksi Otomatis (4x3 Potret)
                   </span>
                 ) : (
                   <span className="badge badge-secondary px-2 py-1 font-12">
-                    <i className="bi bi-info-circle mr-1"></i> Mode Penyesuaian Manual (Rasio 3x4)
+                    <i className="bi bi-info-circle mr-1"></i> Mode Penyesuaian Manual (4x3 Potret)
                   </span>
                 )}
               </div>
@@ -406,7 +406,7 @@ export default function PhotoProfileCropperModal({
               {loading ? (
                 <div className="text-center py-5 text-white">
                   <div className="spinner-border text-primary" role="status" />
-                  <div className="mt-2 font-13 text-light">Menganalisis wajah & proporsi 3x4...</div>
+                  <div className="mt-2 font-13 text-light">Menganalisis wajah & proporsi 4x3...</div>
                 </div>
               ) : (
                 <>
@@ -490,7 +490,7 @@ export default function PhotoProfileCropperModal({
                       title="Posisi kepala & wajah"
                     />
 
-                    {/* Label rasio 3:4 */}
+                    {/* Label rasio 4x3 Potret */}
                     <div
                       className="position-absolute font-11 weight-600 px-1 rounded text-white"
                       style={{
@@ -500,7 +500,7 @@ export default function PhotoProfileCropperModal({
                         pointerEvents: 'none',
                       }}
                     >
-                      3 : 4
+                      4 : 3 Potret
                     </div>
                   </div>
                 </>
@@ -537,7 +537,7 @@ export default function PhotoProfileCropperModal({
               disabled={loading}
               onClick={handleApply}
             >
-              <i className="bi bi-check-lg mr-1"></i> Terapkan Foto 3x4
+              <i className="bi bi-check-lg mr-1"></i> Terapkan Foto 4x3
             </button>
           </div>
         </div>

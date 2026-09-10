@@ -21,6 +21,8 @@ interface DataTableProps<T> {
   loading?: boolean;
   loadingText?: string;
   toolbar?: ReactNode;
+  onRowClick?: (row: T) => void;
+  selectedRowKey?: string;
 }
 
 export default function DataTable<T>({
@@ -34,6 +36,8 @@ export default function DataTable<T>({
   loading = false,
   loadingText = 'Memuat data…',
   toolbar,
+  onRowClick,
+  selectedRowKey,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
   const [page, setPage] = useState(0);
@@ -151,17 +155,31 @@ export default function DataTable<T>({
                 </td>
               </tr>
             ) : (
-              pageData.map((row) => (
-                <tr key={rowKey(row)}>
-                  {columns.map((c) => (
-                    <td key={c.key}>
-                      {c.render
-                        ? c.render(row)
-                        : String((row as Record<string, unknown>)[c.key] ?? '')}
-                    </td>
-                  ))}
-                </tr>
-              ))
+              pageData.map((row) => {
+                const k = rowKey(row);
+                const isSelected = selectedRowKey === k;
+                return (
+                  <tr
+                    key={k}
+                    onClick={(e) => {
+                      if (!onRowClick) return;
+                      const target = e.target as HTMLElement;
+                      if (target.closest('button, a, input, select, textarea, .dropdown-menu, label')) return;
+                      onRowClick(row);
+                    }}
+                    style={{ cursor: onRowClick ? 'pointer' : undefined }}
+                    className={isSelected ? 'table-primary font-weight-bold' : undefined}
+                  >
+                    {columns.map((c) => (
+                      <td key={c.key}>
+                        {c.render
+                          ? c.render(row)
+                          : String((row as Record<string, unknown>)[c.key] ?? '')}
+                      </td>
+                    ))}
+                  </tr>
+                );
+              })
             )}
           </tbody>
         </table>

@@ -50,7 +50,12 @@ export default function DatabaseData() {
   const [recordsLoading, setRecordsLoading] = useState(false);
   const [cropperOpen, setCropperOpen] = useState(false);
   const [cropTargetField, setCropTargetField] = useState<string | null>(null);
+  const [cropTargetEntity, setCropTargetEntity] = useState<string | null>(null);
   const [cropSourceImage, setCropSourceImage] = useState<string | null>(null);
+  const [childFormValues, setChildFormValues] = useState<Record<string, Record<string, string>>>({});
+  const [childOpen, setChildOpen] = useState<Record<string, boolean>>({});
+  const [childBusy, setChildBusy] = useState<Record<string, boolean>>({});
+  const formCardRef = useRef<HTMLDivElement>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
@@ -65,6 +70,13 @@ export default function DatabaseData() {
     [selectedEntity],
   );
   const primaryField = selectedEntity?.primaryCode ?? '';
+
+  const childEntities = useMemo(() => {
+    if (!selectedEntity) return [];
+    return Object.values(entities)
+      .filter((e) => e.parentId === selectedEntity.id)
+      .sort((a, b) => a.name.localeCompare(b.name));
+  }, [selectedEntity, entities]);
 
   const load = useCallback(() => {
     void fetchSchema();
@@ -92,6 +104,9 @@ export default function DatabaseData() {
     setRecordsLoading(true);
     setFormValues({});
     setEditRecordCode(null);
+    setChildFormValues({});
+    setChildOpen({});
+    setChildBusy({});
     setError('');
     const entity = entities[code];
     if (!entity) {
@@ -108,12 +123,16 @@ export default function DatabaseData() {
     }
 
     const allFields = Object.values(entity.fields ?? {});
-    const dariFields = allFields.filter((f) =>
+    const children = Object.values(entities).filter((e) => e.parentId === entity.id);
+    const allChildFields = children.flatMap((c) => Object.values(c.fields ?? {}));
+    const combinedFields = [...allFields, ...allChildFields];
+
+    const dariFields = combinedFields.filter((f) =>
       ['DARI-TABEL', 'INPUT-AUTOCOMPLITE', 'REFERENCE'].includes(
         (f.type ?? '').toUpperCase(),
       ),
     );
-    const hasEmployee = allFields.some((f) => isEmployeeField(f));
+    const hasEmployee = combinedFields.some((f) => isEmployeeField(f));
 
     try {
       const [recs, srcMap] = await Promise.all([
@@ -157,11 +176,58 @@ export default function DatabaseData() {
   function resetForm() {
     setFormValues({});
     setEditRecordCode(null);
+    setChildFormValues({});
+    setChildOpen({});
+  }
+
+  function setChildValue(childCode: string, fieldCode: string, value: string) {
+    setChildFormValues((prev) => ({
+      ...prev,
+      [childCode]: {
+        ...(prev[childCode] ?? {}),
+        [fieldCode]: value,
+      },
+    }));
   }
 
   function editRecord(r: EavRecord) {
     setFormValues({ ...r.values });
     setEditRecordCode(r.recordCode);
+
+    if (selectedEntity) {
+      const children = Object.values(entities).filter((e) => e.parentId === selectedEntity.id);
+      const newChildValues: Record<string, Record<string, string>> = {};
+      const newChildOpen: Record<string, boolean> = {};
+
+      children.forEach((child, idx) => {
+        const cVals: Record<string, string> = {};
+        const childFields = Object.values(child.fields ?? {});
+        for (const f of childFields) {
+          if (r.values[f.code] !== undefined) {
+            cVals[f.code] = r.values[f.code];
+          }
+        }
+        // Pastikan field penghubung / primary child terisi dengan recordCode parent
+        const linkField = childFields.find(
+          (f) =>
+            f.code === primaryField ||
+            f.code.toUpperCase() === 'NRP' ||
+            f.code === child.primaryCode,
+        );
+        if (linkField && !cVals[linkField.code]) {
+          cVals[linkField.code] = r.recordCode;
+        }
+        newChildValues[child.code] = cVals;
+        if (idx === 0) {
+          newChildOpen[child.code] = true;
+        }
+      });
+      setChildFormValues(newChildValues);
+      setChildOpen(newChildOpen);
+    }
+
+    // Scroll form ke tampilan
+    formCardRef.current?.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
   }
 
   async function showRecord(r: EavRecord) {
@@ -282,6 +348,63 @@ export default function DatabaseData() {
     }
   }
 
+  async function saveChild(childEntity: BuilderEntity) {
+    const currentRecordCode = editRecordCode || (primaryField ? formValues[primaryField] : null);
+    if (!currentRecordCode) {
+      alert(`Pilih atau simpan data ${selectedEntity?.name ?? 'utama'} terlebih dahulu.`);
+      return;
+    }
+
+    setChildBusy((prev) => ({ ...prev, [childEntity.code]: true }));
+    setError('');
+    try {
+      const values = childFormValues[childEntity.code] || {};
+      const cleaned: Record<string, string> = {};
+      const childFields = Object.values(childEntity.fields ?? {});
+
+      for (const f of childFields) {
+        const val = values[f.code];
+        if (val !== undefined && val !== '') {
+          cleaned[f.code] = val;
+        }
+      }
+      // Pastikan primary link field terisi
+      const childLinkField = childFields.find(
+        (f) =>
+          f.code === primaryField ||
+          f.code.toUpperCase() === 'NRP' ||
+          f.code === childEntity.primaryCode,
+      );
+      if (childLinkField) {
+        cleaned[childLinkField.code] = currentRecordCode;
+      }
+
+      await eavApi.storeRecord(childEntity.code, {
+        recordCode: currentRecordCode,
+        values: cleaned,
+      });
+
+      if (selectedEntity) {
+        await refreshRecords(selectedEntity.code);
+      }
+      alert(`Data ${childEntity.name} berhasil disimpan!`);
+    } catch (e) {
+      alert(e instanceof Error ? e.message : `Gagal menyimpan data ${childEntity.name}`);
+    } finally {
+      setChildBusy((prev) => ({ ...prev, [childEntity.code]: false }));
+    }
+  }
+
+  const handleApplyCrop = (croppedDataUrl: string) => {
+    if (!cropTargetField) return;
+    if (cropTargetEntity && selectedEntity && cropTargetEntity !== selectedEntity.code) {
+      setChildValue(cropTargetEntity, cropTargetField, croppedDataUrl);
+    } else {
+      setValue(cropTargetField, croppedDataUrl);
+    }
+    setCropperOpen(false);
+  };
+
   async function removeRecord(r: EavRecord) {
     if (!window.confirm(`Hapus data "${r.recordCode}"?`)) return;
     setBusy(true);
@@ -323,11 +446,35 @@ export default function DatabaseData() {
   }
 
   // ===== Render input form sesuai type =====
-  function renderInput(f: BuilderField) {
-    const val = formValues[f.code] ?? '';
+  function renderInput(
+    f: BuilderField,
+    val: string,
+    onChange: (val: string) => void,
+    isLocked = false,
+    entityCode = selectedEntity?.code,
+  ) {
     const type = f.type.toUpperCase();
 
     if (type === 'HIDDEN') return null;
+
+    if (isLocked) {
+      return (
+        <div className="input-group">
+          <input
+            type="text"
+            className="form-control bg-light text-muted"
+            value={val}
+            readOnly
+            disabled
+          />
+          <div className="input-group-append">
+            <span className="input-group-text bg-light text-muted font-12">
+              <i className="bi bi-lock-fill mr-1"></i> Terkunci (Parent)
+            </span>
+          </div>
+        </div>
+      );
+    }
 
     const isPhotoProfile =
       type === 'FOTO-PROFIL' ||
@@ -339,12 +486,12 @@ export default function DatabaseData() {
       return (
         <div className="p-3 border rounded bg-light">
           <div className="d-flex align-items-center">
-            {/* Box Preview 3:4 */}
+            {/* Box Preview 4:3 Potret */}
             <div
               className="mr-3 border rounded overflow-hidden shadow-sm d-flex align-items-center justify-content-center bg-white flex-shrink-0"
               style={{
                 width: '75px',
-                height: '100px', // rasio 3:4
+                height: '100px', // rasio 3:4 (4x3 potret)
                 position: 'relative',
               }}
             >
@@ -357,17 +504,17 @@ export default function DatabaseData() {
               ) : (
                 <div className="text-center text-muted">
                   <i className="bi bi-person-bounding-box font-24"></i>
-                  <div className="font-10 weight-600">3 : 4</div>
+                  <div className="font-10 weight-600">4 : 3 Potret</div>
                 </div>
               )}
             </div>
 
             <div className="flex-grow-1">
               <div className="font-13 weight-600 text-dark mb-1">
-                {f.name} (Rasio 3 x 4)
+                {f.name} (Foto 4 x 3)
               </div>
               <div className="font-11 text-muted mb-2">
-                Pasfoto formal rasio 3x4 dengan bantuan deteksi wajah otomatis & bebas digeser.
+                Pasfoto formal rasio 4x3 (tinggi lebih panjang) dengan bantuan deteksi wajah otomatis &amp; bebas digeser.
               </div>
 
               <div className="d-flex flex-wrap align-items-center">
@@ -384,6 +531,7 @@ export default function DatabaseData() {
                         reader.onload = () => {
                           setCropSourceImage(reader.result as string);
                           setCropTargetField(f.code);
+                          setCropTargetEntity(entityCode ?? null);
                           setCropperOpen(true);
                         };
                         reader.readAsDataURL(file);
@@ -401,16 +549,17 @@ export default function DatabaseData() {
                       onClick={() => {
                         setCropSourceImage(val);
                         setCropTargetField(f.code);
+                        setCropTargetEntity(entityCode ?? null);
                         setCropperOpen(true);
                       }}
-                      title="Sesuaikan ulang crop 3x4"
+                      title="Sesuaikan ulang crop 4x3"
                     >
                       <i className="bi bi-crop mr-1"></i> Sesuaikan
                     </button>
                     <button
                       type="button"
                       className="btn btn-sm btn-outline-danger"
-                      onClick={() => setValue(f.code, '')}
+                      onClick={() => onChange('')}
                       title="Hapus foto"
                     >
                       <i className="bi bi-trash"></i>
@@ -441,7 +590,7 @@ export default function DatabaseData() {
           type="color"
           className="form-control"
           value={val?.startsWith('#') ? val : ''}
-          onChange={(e) => setValue(f.code, e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       );
     }
@@ -452,7 +601,7 @@ export default function DatabaseData() {
           type="date"
           className="form-control"
           value={val}
-          onChange={(e) => setValue(f.code, e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       );
     }
@@ -463,7 +612,7 @@ export default function DatabaseData() {
           type="datetime-local"
           className="form-control"
           value={val}
-          onChange={(e) => setValue(f.code, e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       );
     }
@@ -474,7 +623,7 @@ export default function DatabaseData() {
           type="number"
           className="form-control"
           value={val}
-          onChange={(e) => setValue(f.code, e.target.value)}
+          onChange={(e) => onChange(e.target.value)}
         />
       );
     }
@@ -490,7 +639,7 @@ export default function DatabaseData() {
             <select
               className="form-control"
               value={val}
-              onChange={(e) => setValue(f.code, e.target.value)}
+              onChange={(e) => onChange(e.target.value)}
             >
               <option value="">-- Pilih {f.name} --</option>
               {empList.map((emp) => {
@@ -509,7 +658,7 @@ export default function DatabaseData() {
               className="form-control"
               placeholder={`Masukkan ${f.name} (contoh: MBLE-0422003)`}
               value={val}
-              onChange={(e) => setValue(f.code, e.target.value)}
+              onChange={(e) => onChange(e.target.value)}
             />
           )}
           {val && (
@@ -526,7 +675,7 @@ export default function DatabaseData() {
       const fsrc = f.data_source?.fieldSource;
       const opts = sourceOptions[src ?? ''] ?? [];
       return (
-        <select className="form-control" value={val} onChange={(e) => setValue(f.code, e.target.value)}>
+        <select className="form-control" value={val} onChange={(e) => onChange(e.target.value)}>
           <option value="">-- {f.name} --</option>
           {opts.map((o) => (
             <option key={o.recordCode} value={o.recordCode}>
@@ -542,7 +691,7 @@ export default function DatabaseData() {
         type="text"
         className="form-control"
         value={val}
-        onChange={(e) => setValue(f.code, e.target.value)}
+        onChange={(e) => onChange(e.target.value)}
       />
     );
   }
@@ -595,7 +744,7 @@ export default function DatabaseData() {
 
         {/* ===== Form Input ===== */}
         <div className="col-md-6 mb-30">
-          <div className="card-box pd-20">
+          <div className="card-box pd-20" ref={formCardRef}>
             <div className="d-flex justify-content-between align-items-center mb-3">
               <div>
                 <span className="h5 mb-0 text-primary">{selectedEntity ? selectedEntity.name : 'Detail'}</span>
@@ -603,6 +752,12 @@ export default function DatabaseData() {
                   <span className="badge badge-success ml-2" title="Form ini memiliki alur persetujuan bertingkat">
                     <i className="bi bi-shield-check mr-1"></i>
                     {approvalConfig.length} Persetujuan
+                  </span>
+                )}
+                {childEntities.length > 0 && (
+                  <span className="badge badge-info ml-2" title={`${childEntities.length} tabel child terhubung`}>
+                    <i className="bi bi-diagram-3 mr-1"></i>
+                    {childEntities.length} Child
                   </span>
                 )}
               </div>
@@ -615,25 +770,169 @@ export default function DatabaseData() {
             {!selectedEntity ? (
               <p className="text-secondary">Pilih tabel.</p>
             ) : (
-              <form
-                onSubmit={(e) => {
-                  e.preventDefault();
-                  store();
-                }}
-              >
-                {selectedFields.map((f) => (
-                  <div className="form-group" key={f.code}>
-                    <label className="font-14 weight-500">{f.name}</label>
-                    {renderInput(f)}
+              <>
+                <form
+                  onSubmit={(e) => {
+                    e.preventDefault();
+                    store();
+                  }}
+                >
+                  {selectedFields.map((f) => (
+                    <div className="form-group" key={f.code}>
+                      <label className="font-14 weight-500">{f.name}</label>
+                      {renderInput(
+                        f,
+                        formValues[f.code] ?? '',
+                        (val) => setValue(f.code, val),
+                        false,
+                        selectedEntity.code,
+                      )}
+                    </div>
+                  ))}
+                  <div className="d-flex align-items-center">
+                    <button type="submit" className="btn btn-primary" disabled={busy}>
+                      {busy ? 'Menyimpan…' : editRecordCode ? 'Simpan Perubahan' : 'Simpan'}
+                    </button>
+                    {editRecordCode && (
+                      <span className="text-secondary font-12 ml-2">Mengedit: <strong>{editRecordCode}</strong></span>
+                    )}
                   </div>
-                ))}
-                <button type="submit" className="btn btn-primary" disabled={busy}>
-                  {busy ? 'Menyimpan…' : editRecordCode ? 'Simpan Perubahan' : 'Simpan'}
-                </button>
-                {editRecordCode && (
-                  <span className="text-secondary font-12 ml-2">Mengedit: {editRecordCode}</span>
+                </form>
+
+                {/* ===== Child Tables Accordion ===== */}
+                {childEntities.length > 0 && (
+                  <div className="mt-4 pt-3 border-top">
+                    <div className="d-flex align-items-center justify-content-between mb-2">
+                      <div className="font-14 weight-600 text-dark">
+                        <i className="bi bi-diagram-3 mr-1 text-primary"></i>
+                        Tabel Child Terkait ({childEntities.length})
+                      </div>
+                      {editRecordCode && (
+                        <span className="badge badge-info px-2 py-1 font-11">
+                          Terkait: {editRecordCode}
+                        </span>
+                      )}
+                    </div>
+
+                    {!editRecordCode && !formValues[primaryField] && (
+                      <div className="alert alert-light border font-12 text-muted py-2 mb-3">
+                        <i className="bi bi-info-circle mr-1 text-primary"></i>
+                        Pilih data pada tabel di bawah untuk mengisi dan mengupdate data child secara bersamaan.
+                      </div>
+                    )}
+
+                    <div className="accordion" id="accordionChildTables">
+                      {childEntities.map((child) => {
+                        const isOpen = !!childOpen[child.code];
+                        const childFields = Object.values(child.fields ?? {}).sort(
+                          (a, b) => (a.sort ?? 0) - (b.sort ?? 0),
+                        );
+                        const values = childFormValues[child.code] || {};
+                        const isSaving = !!childBusy[child.code];
+
+                        return (
+                          <div className="card mb-2 border shadow-sm" key={child.code}>
+                            <div
+                              className="card-header py-2 px-3 bg-white d-flex align-items-center justify-content-between cursor-pointer"
+                              style={{ cursor: 'pointer' }}
+                              onClick={() =>
+                                setChildOpen((prev) => ({
+                                  ...prev,
+                                  [child.code]: !prev[child.code],
+                                }))
+                              }
+                            >
+                              <div className="d-flex align-items-center">
+                                <i className="bi bi-table text-primary mr-2"></i>
+                                <span className="weight-600 font-13 text-dark mr-2">
+                                  {child.name}
+                                </span>
+                                <span className="badge badge-pill badge-light font-11">
+                                  {child.code}
+                                </span>
+                              </div>
+                              <div className="d-flex align-items-center">
+                                <span className="badge badge-secondary font-11 mr-2">
+                                  {childFields.length} Field
+                                </span>
+                                <i
+                                  className={`bi ${isOpen ? 'bi-chevron-up' : 'bi-chevron-down'} text-muted`}
+                                ></i>
+                              </div>
+                            </div>
+
+                            {isOpen && (
+                              <div className="card-body p-3 bg-white border-top">
+                                <form
+                                  onSubmit={(e) => {
+                                    e.preventDefault();
+                                    void saveChild(child);
+                                  }}
+                                >
+                                  {childFields.map((f) => {
+                                    const isLinkField =
+                                      f.code === primaryField ||
+                                      f.code.toUpperCase() === 'NRP' ||
+                                      f.code === child.primaryCode;
+                                    const val = isLinkField
+                                      ? (editRecordCode || formValues[primaryField] || '')
+                                      : (values[f.code] ?? '');
+
+                                    return (
+                                      <div className="form-group mb-3" key={f.code}>
+                                        <label className="font-13 weight-500 mb-1">
+                                          {f.name}
+                                          {isLinkField && (
+                                            <span className="badge badge-warning text-dark ml-2 font-11">
+                                              Primary Link
+                                            </span>
+                                          )}
+                                        </label>
+                                        {renderInput(
+                                          f,
+                                          val,
+                                          (newVal) => setChildValue(child.code, f.code, newVal),
+                                          isLinkField,
+                                          child.code,
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+
+                                  <div className="d-flex align-items-center justify-content-between mt-3 pt-2 border-top">
+                                    <button
+                                      type="submit"
+                                      className="btn btn-sm btn-primary"
+                                      disabled={isSaving || (!editRecordCode && !formValues[primaryField])}
+                                    >
+                                      {isSaving ? (
+                                        <>
+                                          <span className="spinner-border spinner-border-sm mr-1" role="status" />
+                                          Menyimpan…
+                                        </>
+                                      ) : (
+                                        <>
+                                          <i className="bi bi-check-circle mr-1"></i>
+                                          Simpan {child.name}
+                                        </>
+                                      )}
+                                    </button>
+                                    {editRecordCode && (
+                                      <span className="text-muted font-11">
+                                        Record: {editRecordCode}
+                                      </span>
+                                    )}
+                                  </div>
+                                </form>
+                              </div>
+                            )}
+                          </div>
+                        );
+                      })}
+                    </div>
+                  </div>
                 )}
-              </form>
+              </>
             )}
           </div>
         </div>
@@ -709,6 +1008,11 @@ export default function DatabaseData() {
                 emptyText="Belum ada data."
                 loading={recordsLoading}
                 loadingText="Memuat data…"
+                onRowClick={(row) => {
+                  const rec = records.find((r) => r.recordCode === row.__recordCode);
+                  if (rec) editRecord(rec);
+                }}
+                selectedRowKey={editRecordCode ?? undefined}
                 toolbar={
                   <>
                     <button className="btn btn-sm btn-outline-success" onClick={doExport}>
@@ -911,7 +1215,7 @@ export default function DatabaseData() {
         </div>
       )}
 
-      {/* ===== Modal Cropper Foto Profil 3x4 ===== */}
+      {/* ===== Modal Cropper Foto Profil 4x3 ===== */}
       <PhotoProfileCropperModal
         isOpen={cropperOpen}
         imageSrc={cropSourceImage}
@@ -919,11 +1223,10 @@ export default function DatabaseData() {
           setCropperOpen(false);
           setCropSourceImage(null);
           setCropTargetField(null);
+          setCropTargetEntity(null);
         }}
         onApplyCrop={(croppedDataUrl) => {
-          if (cropTargetField) {
-            setValue(cropTargetField, croppedDataUrl);
-          }
+          handleApplyCrop(croppedDataUrl);
         }}
       />
     </div>
