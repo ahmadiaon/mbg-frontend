@@ -121,6 +121,7 @@ export default function WaterLevel() {
   const [formDraftMeter, setFormDraftMeter] = useState<File | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [toast, setToast] = useState<{ type: 'success' | 'error'; message: string } | null>(null);
+  const [deleteTarget, setDeleteTarget] = useState<WaterLevelItem | null>(null);
   const [deletingId, setDeletingId] = useState<number | null>(null);
 
   // Privileges
@@ -129,7 +130,7 @@ export default function WaterLevel() {
   const featurePerm = access?.features?.['WATER-LEVEL'];
   const canRead = featurePerm?.read ?? true;
   const canWrite = Boolean(isSuperAdmin || featurePerm?.write);
-  const canDelete = Boolean(isSuperAdmin || featurePerm?.delete);
+  const canDelete = Boolean(isSuperAdmin || featurePerm?.delete || featurePerm?.write);
 
   const loadData = async (loc?: string) => {
     try {
@@ -193,19 +194,24 @@ export default function WaterLevel() {
     }
   };
 
-  const handleDelete = async (id: number) => {
+  const openDeleteConfirm = (row: WaterLevelItem) => {
     if (!canDelete) {
-      showToast('error', 'Akses ditolak: Anda tidak memiliki izin menghapus data.');
+      showToast('error', 'Akses ditolak: Anda tidak memiliki wewenang untuk menghapus data water level.');
       return;
     }
-    if (!window.confirm('Apakah Anda yakin ingin menghapus data pengukuran ini?')) {
-      return;
-    }
+    setDeleteTarget(row);
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!deleteTarget) return;
     try {
-      setDeletingId(id);
-      await waterLevelApi.delete(id);
-      showToast('success', 'Data pengukuran berhasil dihapus.');
+      setDeletingId(deleteTarget.id);
+      await waterLevelApi.delete(deleteTarget.id);
+      showToast(
+        'success',
+        `Data pengukuran ${deleteTarget.lokasi} (${formatDate(deleteTarget.tanggal)} ${deleteTarget.jam}) berhasil dihapus!`,
+      );
+      setDeleteTarget(null);
       loadData(dashboardLocation);
     } catch (err: any) {
       showToast('error', err.message || 'Gagal menghapus data.');
@@ -791,15 +797,15 @@ export default function WaterLevel() {
                     }`}
                   />
                 </th>
-                <th style={{ width: '15%' }}>Panorama</th>
-                <th style={{ width: '15%' }}>Draft Meter</th>
-                {canDelete && <th style={{ width: '5%' }} className="text-center">Aksi</th>}
+                <th style={{ width: '13%' }}>Panorama</th>
+                <th style={{ width: '13%' }}>Draft Meter</th>
+                <th style={{ width: '10%' }} className="text-center">Aksi</th>
               </tr>
             </thead>
             <tbody>
               {paginatedData.length === 0 ? (
                 <tr>
-                  <td colSpan={canDelete ? 8 : 7} className="text-center py-4 text-muted">
+                  <td colSpan={8} className="text-center py-4 text-muted">
                     {loading ? 'Mengambil data...' : 'Tidak ada riwayat pengukuran.'}
                   </td>
                 </tr>
@@ -874,24 +880,25 @@ export default function WaterLevel() {
                           <span className="text-muted font-11">Tidak ada</span>
                         )}
                       </td>
-                      {canDelete && (
-                        <td className="text-center">
-                          <button
-                            type="button"
-                            className="btn btn-outline-danger btn-sm p-1"
-                            style={{ lineHeight: 1 }}
-                            disabled={deletingId === row.id}
-                            onClick={() => handleDelete(row.id)}
-                            title="Hapus Data Pengukuran"
-                          >
-                            {deletingId === row.id ? (
-                              <span className="spinner-border spinner-border-sm" />
-                            ) : (
-                              <i className="bi bi-trash" />
-                            )}
-                          </button>
-                        </td>
-                      )}
+                      <td className="text-center">
+                        <button
+                          type="button"
+                          className="btn btn-outline-danger btn-sm px-2 py-1 font-12"
+                          style={{ borderRadius: 6 }}
+                          disabled={deletingId === row.id}
+                          onClick={() => openDeleteConfirm(row)}
+                          title="Hapus Data Pengukuran Ini"
+                        >
+                          {deletingId === row.id ? (
+                            <span className="spinner-border spinner-border-sm" />
+                          ) : (
+                            <>
+                              <i className="bi bi-trash mr-1" />
+                              Hapus
+                            </>
+                          )}
+                        </button>
+                      </td>
                     </tr>
                   );
                 })
@@ -1633,6 +1640,108 @@ export default function WaterLevel() {
                     ) : (
                       <>
                         <i className="bi bi-download mr-1" /> Simpan Gambar
+                      </>
+                    )}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL 4: Konfirmasi Hapus Data Pengukuran */}
+      {deleteTarget && (
+        <div
+          className="modal fade show d-block"
+          tabIndex={-1}
+          style={{ backgroundColor: 'rgba(0,0,0,0.65)', zIndex: 1060 }}
+          onClick={() => deletingId === null && setDeleteTarget(null)}
+        >
+          <div
+            className="modal-dialog modal-dialog-centered"
+            style={{ maxWidth: 440 }}
+            onClick={(e) => e.stopPropagation()}
+          >
+            <div className="modal-content border-0 shadow-lg" style={{ borderRadius: 14, overflow: 'hidden' }}>
+              <div className="modal-header bg-danger text-white py-3">
+                <h5 className="modal-title font-16 font-weight-bold text-white d-flex align-items-center mb-0">
+                  <i className="bi bi-exclamation-triangle-fill mr-2 font-18" />
+                  Konfirmasi Hapus Data
+                </h5>
+                <button
+                  type="button"
+                  className="close text-white"
+                  onClick={() => setDeleteTarget(null)}
+                  disabled={deletingId !== null}
+                >
+                  &times;
+                </button>
+              </div>
+              <div className="modal-body p-4 text-center">
+                <div
+                  className="mx-auto mb-3 d-flex align-items-center justify-content-center rounded-circle"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    backgroundColor: '#fee2e2',
+                    color: '#dc2626',
+                    fontSize: 28,
+                  }}
+                >
+                  <i className="bi bi-trash" />
+                </div>
+                <h5 className="font-weight-bold text-dark mb-2">Hapus Pengukuran Ini?</h5>
+                <p className="text-muted font-13 mb-3">
+                  Tindakan ini akan menghapus data pengukuran water level secara permanen dari database.
+                </p>
+
+                <div
+                  className="text-left p-3 rounded mb-4"
+                  style={{ backgroundColor: '#f8fafc', border: '1px solid #e2e8f0', fontSize: 13 }}
+                >
+                  <div className="d-flex justify-content-between py-1 border-bottom">
+                    <span className="text-muted">Lokasi:</span>
+                    <strong className="text-dark">{deleteTarget.lokasi}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between py-1 border-bottom">
+                    <span className="text-muted">Tanggal:</span>
+                    <strong className="text-dark">{formatDate(deleteTarget.tanggal)}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between py-1 border-bottom">
+                    <span className="text-muted">Jam:</span>
+                    <strong className="text-dark">{deleteTarget.jam}</strong>
+                  </div>
+                  <div className="d-flex justify-content-between py-1">
+                    <span className="text-muted">Tinggi Air:</span>
+                    <strong className="text-primary font-15">{deleteTarget.tinggi} cm</strong>
+                  </div>
+                </div>
+
+                <div className="d-flex justify-content-end" style={{ gap: 10 }}>
+                  <button
+                    type="button"
+                    className="btn btn-light px-3 font-13 font-weight-600"
+                    onClick={() => setDeleteTarget(null)}
+                    disabled={deletingId !== null}
+                  >
+                    Batal
+                  </button>
+                  <button
+                    type="button"
+                    className="btn btn-danger px-4 font-13 font-weight-600"
+                    onClick={handleConfirmDelete}
+                    disabled={deletingId !== null}
+                  >
+                    {deletingId !== null ? (
+                      <>
+                        <span className="spinner-border spinner-border-sm mr-1" />
+                        Menghapus...
+                      </>
+                    ) : (
+                      <>
+                        <i className="bi bi-trash mr-1" />
+                        Ya, Hapus Data
                       </>
                     )}
                   </button>
