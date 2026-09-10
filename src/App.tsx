@@ -11,6 +11,7 @@ import DatabaseForm from './pages/DatabaseForm';
 import DatabaseData from './pages/DatabaseData';
 import DatabaseUser from './pages/DatabaseUser';
 import Authority from './pages/Authority';
+import WaterLevel from './pages/WaterLevel';
 import DynamicFeature from './pages/DynamicFeature';
 import { EavProvider } from './context/EavContext';
 
@@ -39,6 +40,7 @@ export default function App() {
         <Route path="/database/data" element={<DatabaseData />} />
         <Route path="/database/user" element={<DatabaseUser />} />
         <Route path="/authority" element={<Authority />} />
+        <Route path="/feature/water-level" element={<WaterLevel />} />
         <Route path="*" element={<DynamicFeature />} />
       </Route>
     </Routes>

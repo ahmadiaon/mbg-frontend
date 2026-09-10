@@ -6,6 +6,7 @@ export interface MenuItem {
   implemented?: boolean;
   minRole?: number; // tampil jika role >= minRole
   featureCode?: string; // tampil jika backend memberi akses read
+  department?: string; // tampil jika user berada di departemen terkait (atau superuser)
   cap?: boolean; // render sebagai header section (sidebar-small-cap)
 }
 
@@ -30,16 +31,16 @@ export const MENU: MenuItem[] = [
 
   { label: 'Fitur', cap: true },
   { label: 'Struktur Organisasi', icon: 'bi bi-diagram-3', path: '/struktur-organisasi', implemented: false },
-  { label: 'Water Level', icon: 'bi bi-droplet', featureCode: 'WATER-LEVEL', path: '/feature/water-level', implemented: false },
+  { label: 'Water Level', icon: 'bi bi-droplet', featureCode: 'WATER-LEVEL', path: '/feature/water-level', implemented: true },
   { label: 'MBG-Link', icon: 'bi bi-link-45deg', path: '/mbg-link' },
   { label: 'Recruitment', icon: 'bi bi-box-seam', featureCode: 'RECRUITMENT', path: '/manage/recruitment', implemented: false },
   { label: 'File Manager', icon: 'bi bi-folder', featureCode: 'FILE-MANAGER', path: '/feature/file-manager', implemented: false },
 
-  { label: 'Hauling', cap: true, minRole: 5 },
+  { label: 'Hauling', cap: true, department: 'HAULING' },
   {
     label: 'Absensi Hauling',
     icon: 'bi bi-truck',
-    featureCode: 'DATABASE',
+    department: 'HAULING',
     children: [
       { label: 'Rute', path: '/hauling/time-cek', implemented: false },
       { label: 'Izin', path: '/manage/izin', implemented: false },

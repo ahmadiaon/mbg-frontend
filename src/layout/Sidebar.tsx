@@ -12,11 +12,7 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
   const { user, access } = useAuth();
   const [expanded, setExpanded] = useState<string | null>(null);
   const role = user?.role ?? 1;
-  const dynamicFeatures = access
-    ? Object.values(access.features)
-        .filter((feature) => feature.read && feature.route)
-        .sort((a, b) => a.sort - b.sort)
-    : [];
+  const isSuperAdmin = role >= 14 || (access?.roleLevels?.some((l) => l >= 14) ?? false);
 
   function toggle(key: string) {
     setExpanded((prev) => (prev === key ? null : key));
@@ -40,6 +36,12 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
             {MENU.map((item, index) => {
               if (item.minRole && role < item.minRole) return null;
               if (item.featureCode && !access?.features[item.featureCode]?.read) return null;
+              if (item.department) {
+                const isInDept = access?.statuses?.some(
+                  (s) => s.department?.toUpperCase().includes(item.department!.toUpperCase())
+                ) ?? false;
+                if (!isSuperAdmin && !isInDept) return null;
+              }
 
               if (item.cap) {
                 return (
@@ -97,20 +99,6 @@ export default function Sidebar({ mobileOpen, onClose }: SidebarProps) {
                 </li>
               );
             })}
-            {dynamicFeatures.length > 0 && (
-              <>
-                <li><div className="dropdown-divider" /></li>
-                <li><div className="sidebar-small-cap">Feature Aktif</div></li>
-                {dynamicFeatures.map((feature) => (
-                  <li key={`dynamic-${feature.code}`}>
-                    <NavLink to={feature.route!} onClick={onClose} className={({ isActive }) => `dropdown-toggle no-arrow ${isActive ? 'active' : ''}`}>
-                      <span className={`micon ${feature.icon ?? 'bi bi-grid'}`} />
-                      <span className="mtext">{feature.name}</span>
-                    </NavLink>
-                  </li>
-                ))}
-              </>
-            )}
           </ul>
         </div>
       </div>

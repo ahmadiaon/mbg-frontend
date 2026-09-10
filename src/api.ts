@@ -581,3 +581,71 @@ export const approvalApi = {
     api<ApprovalDataRow>(`/approval/${id}/${action}`, { method: 'POST' }),
 };
 
+export interface WaterLevelItem {
+  id: number;
+  tanggal: string; // YYYY-MM-DD
+  jam: string;
+  tinggi: number;
+  lokasi: string;
+  foto_panorama: string | null;
+  foto_draft_meter: string | null;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface WaterLevelSummaryLocation {
+  latest: WaterLevelItem | null;
+  yesterday: WaterLevelItem | null;
+  diff: number;
+  text: string;
+  status: 'up' | 'down' | 'neutral';
+}
+
+export interface WaterLevelTrendItem {
+  date: string;
+  mb: number | null;
+  mbTime: string | null;
+  sri: number | null;
+  sriTime: string | null;
+}
+
+export interface WaterLevelSummary {
+  mb: WaterLevelSummaryLocation;
+  sri: WaterLevelSummaryLocation;
+  trend: WaterLevelTrendItem[];
+}
+
+export async function postFormData<T>(path: string, fd: FormData): Promise<T> {
+  const token = getToken();
+  const res = await fetch(`${BASE}${path}`, {
+    method: 'POST',
+    body: fd,
+    headers: token ? { Authorization: `Bearer ${token}` } : {},
+  });
+  if (!res.ok) {
+    let message = `Terjadi kesalahan (HTTP ${res.status})`;
+    try {
+      const body = await res.json();
+      if (body?.message) message = body.message;
+    } catch {}
+    throw new Error(message);
+  }
+  return res.json() as Promise<T>;
+}
+
+export const waterLevelApi = {
+  data: (lokasi?: string) =>
+    api<{ success: boolean; data: WaterLevelItem[] }>(
+      `/feature/water-level/data${lokasi && lokasi !== 'ALL' ? `?lokasi=${encodeURIComponent(lokasi)}` : ''}`
+    ),
+  summary: () =>
+    api<{ success: boolean; data: WaterLevelSummary }>('/feature/water-level/summary'),
+  store: (fd: FormData) =>
+    postFormData<{ success: boolean; message: string; data: WaterLevelItem }>('/feature/water-level', fd),
+  delete: (id: number) =>
+    api<{ success: boolean; message: string }>(`/feature/water-level/${id}`, {
+      method: 'DELETE',
+    }),
+};
+
+
