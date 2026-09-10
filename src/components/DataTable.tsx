@@ -18,6 +18,8 @@ interface DataTableProps<T> {
   searchPlaceholder?: string;
   searchableKeys?: string[];
   emptyText?: string;
+  loading?: boolean;
+  loadingText?: string;
   toolbar?: ReactNode;
 }
 
@@ -29,6 +31,8 @@ export default function DataTable<T>({
   searchPlaceholder = 'Cari…',
   searchableKeys,
   emptyText = 'Belum ada data.',
+  loading = false,
+  loadingText = 'Memuat data…',
   toolbar,
 }: DataTableProps<T>) {
   const [search, setSearch] = useState('');
@@ -133,9 +137,16 @@ export default function DataTable<T>({
             </tr>
           </thead>
           <tbody>
-            {pageData.length === 0 ? (
+            {loading ? (
               <tr>
-                <td colSpan={columns.length} className="text-center text-secondary">
+                <td colSpan={columns.length} className="text-center py-4 text-secondary">
+                  <div className="spinner-border spinner-border-sm text-primary mr-2" role="status" />
+                  <span>{loadingText}</span>
+                </td>
+              </tr>
+            ) : pageData.length === 0 ? (
+              <tr>
+                <td colSpan={columns.length} className="text-center py-3 text-secondary">
                   {emptyText}
                 </td>
               </tr>

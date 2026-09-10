@@ -46,6 +46,7 @@ export default function DatabaseData() {
   const [approvalRows, setApprovalRows] = useState<ApprovalDataRow[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalActionBusy, setApprovalActionBusy] = useState<number | null>(null);
+  const [recordsLoading, setRecordsLoading] = useState(false);
   const importRef = useRef<HTMLInputElement>(null);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
@@ -70,22 +71,29 @@ export default function DatabaseData() {
   }, [load]);
 
   async function refreshRecords(code: string) {
+    setRecordsLoading(true);
     try {
       const recs = await eavApi.records(code);
       setRecords(recs);
     } catch {
       // ignore
+    } finally {
+      setRecordsLoading(false);
     }
   }
 
   async function selectTable(code: string) {
     setSelected(code);
     setRecords([]);
+    setRecordsLoading(true);
     setFormValues({});
     setEditRecordCode(null);
     setError('');
     const entity = entities[code];
-    if (!entity) return;
+    if (!entity) {
+      setRecordsLoading(false);
+      return;
+    }
 
     // Ambil konfigurasi approval langsung dari EavContext (0 HTTP request!)
     const stepsMap = persetujuan[code];
@@ -103,28 +111,32 @@ export default function DatabaseData() {
     );
     const hasEmployee = allFields.some((f) => isEmployeeField(f));
 
-    const [recs, srcMap] = await Promise.all([
-      eavApi.records(code).catch(() => [] as EavRecord[]),
-      (async () => {
-        const map: Record<string, EavRecord[]> = {};
-        await Promise.all([
-          ...dariFields.map(async (f) => {
-            const src = f.data_source?.entitySource;
-            if (src && !map[src]) {
-              map[src] = await fetchMasterRecords(src);
-            }
-          }),
-          (async () => {
-            if (hasEmployee && !map['KARYAWAN']) {
-              map['KARYAWAN'] = await fetchMasterRecords('KARYAWAN');
-            }
-          })(),
-        ]);
-        return map;
-      })(),
-    ]);
-    setRecords(recs);
-    setSourceOptions(srcMap);
+    try {
+      const [recs, srcMap] = await Promise.all([
+        eavApi.records(code).catch(() => [] as EavRecord[]),
+        (async () => {
+          const map: Record<string, EavRecord[]> = {};
+          await Promise.all([
+            ...dariFields.map(async (f) => {
+              const src = f.data_source?.entitySource;
+              if (src && !map[src]) {
+                map[src] = await fetchMasterRecords(src);
+              }
+            }),
+            (async () => {
+              if (hasEmployee && !map['KARYAWAN']) {
+                map['KARYAWAN'] = await fetchMasterRecords('KARYAWAN');
+              }
+            })(),
+          ]);
+          return map;
+        })(),
+      ]);
+      setRecords(recs);
+      setSourceOptions(srcMap);
+    } finally {
+      setRecordsLoading(false);
+    }
   }
 
   const flatData = useMemo<FlatRow[]>(
@@ -596,6 +608,8 @@ export default function DatabaseData() {
                 rowKey={(r) => r.__recordCode}
                 pageSize={10}
                 emptyText="Belum ada data."
+                loading={recordsLoading}
+                loadingText="Memuat data…"
                 toolbar={
                   <>
                     <button className="btn btn-sm btn-outline-success" onClick={doExport}>

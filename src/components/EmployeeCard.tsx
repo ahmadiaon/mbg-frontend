@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState } from 'react';
 import type { EavRecord } from '../api';
 
 export interface EmployeeInfo {
@@ -11,22 +11,61 @@ export interface EmployeeInfo {
   departemen?: string;
   divisi?: string;
   avatarUrl: string;
+  hasCustomPhoto: boolean;
   tanggalMasuk?: string;
   tanggalBerakhir?: string;
 }
 
-// Generate deterministic avatar (/deskapp/images/photo1.jpg - photo9.jpg)
-export function getAvatarForNrp(nrp: string, customPhoto?: string): string {
-  if (customPhoto && (customPhoto.startsWith('http') || customPhoto.startsWith('/'))) {
-    return customPhoto;
+// Komponen Avatar Karyawan Ringan (0 HTTP request jika belum ada foto profil)
+export function EmployeeAvatar({
+  photoUrl,
+  hasCustomPhoto,
+  nama,
+  size = 42,
+}: {
+  photoUrl?: string;
+  hasCustomPhoto?: boolean;
+  nama: string;
+  size?: number;
+}) {
+  const [loadFailed, setLoadFailed] = useState(false);
+
+  if (hasCustomPhoto && photoUrl && !loadFailed) {
+    return (
+      <img
+        src={photoUrl}
+        className="border-radius-100 shadow-sm"
+        width={size}
+        height={size}
+        alt={nama}
+        onError={() => setLoadFailed(true)}
+        style={{
+          objectFit: 'cover',
+          border: '1.5px solid #2563eb',
+          width: `${size}px`,
+          height: `${size}px`,
+        }}
+      />
+    );
   }
-  if (!nrp) return '/deskapp/images/photo5.jpg';
-  let hash = 0;
-  for (let i = 0; i < nrp.length; i++) {
-    hash = (hash * 31 + nrp.charCodeAt(i)) >>> 0;
-  }
-  const photoIndex = (hash % 9) + 1;
-  return `/deskapp/images/photo${photoIndex}.jpg`;
+
+  // Fallback 1 ikon standar tanpa request file gambar (cepat, hemat bandwidth, loading instan)
+  return (
+    <div
+      className="border-radius-100 d-inline-flex align-items-center justify-content-center flex-shrink-0 shadow-sm"
+      style={{
+        width: `${size}px`,
+        height: `${size}px`,
+        backgroundColor: '#e2e8f0',
+        color: '#475569',
+        border: '1.5px solid #cbd5e1',
+        fontSize: size >= 60 ? '30px' : '18px',
+      }}
+      title={nama}
+    >
+      <i className="bi bi-person-fill"></i>
+    </div>
+  );
 }
 
 export function extractEmployeeInfo(
@@ -53,7 +92,20 @@ export function extractEmployeeInfo(
   const divisi = clean(vals['DIVISI'] || vals['divisi']);
   const tanggalMasuk = clean(vals['TANGGAL-MASUK-KERJA--TMK-'] || vals['tanggal_masuk']);
   const tanggalBerakhir = clean(vals['TANGGAL-BERAKHIR'] || vals['tanggal_berakhir']);
-  const photo = clean(vals['FOTO'] || vals['PHOTO'] || vals['avatar']);
+
+  // Cari field foto profil dari berbagai kemungkinan nama field
+  const photo = clean(
+    vals['FOTO-PROFIL'] ||
+    vals['FOTO'] ||
+    vals['FILE-FOTO'] ||
+    vals['FOTO-KARYAWAN'] ||
+    vals['PHOTO'] ||
+    vals['avatar']
+  );
+
+  const hasCustomPhoto = Boolean(
+    photo && (photo.startsWith('http') || photo.startsWith('/') || photo.startsWith('data:'))
+  );
 
   return {
     nrp,
@@ -66,7 +118,8 @@ export function extractEmployeeInfo(
     divisi,
     tanggalMasuk,
     tanggalBerakhir,
-    avatarUrl: getAvatarForNrp(nrp, photo),
+    avatarUrl: hasCustomPhoto ? photo : '',
+    hasCustomPhoto,
   };
 }
 
@@ -103,13 +156,11 @@ export default function EmployeeCard({
       >
         <div className="d-flex align-items-center">
           <div className="avatar mr-3 flex-shrink-0">
-            <img
-              src={info.avatarUrl}
-              alt={info.nama}
-              className="border-radius-100 shadow-sm"
-              width="64"
-              height="64"
-              style={{ objectFit: 'cover', border: '2px solid #3b82f6' }}
+            <EmployeeAvatar
+              photoUrl={info.avatarUrl}
+              hasCustomPhoto={info.hasCustomPhoto}
+              nama={info.nama}
+              size={64}
             />
           </div>
           <div className="flex-grow-1" style={{ lineHeight: '1.4' }}>
@@ -165,13 +216,11 @@ export default function EmployeeCard({
       }}
     >
       <div className="avatar mr-2 flex-shrink-0">
-        <img
-          src={info.avatarUrl}
-          className="border-radius-100 shadow-sm"
-          width="42"
-          height="42"
-          alt={info.nama}
-          style={{ objectFit: 'cover', border: '1.5px solid #2563eb' }}
+        <EmployeeAvatar
+          photoUrl={info.avatarUrl}
+          hasCustomPhoto={info.hasCustomPhoto}
+          nama={info.nama}
+          size={42}
         />
       </div>
       <div className="txt" style={{ lineHeight: '1.2', overflow: 'hidden', minWidth: 0 }}>
