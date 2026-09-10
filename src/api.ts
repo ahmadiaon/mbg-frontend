@@ -458,6 +458,11 @@ export const authorityAdminApi = {
       method: 'PUT',
       body: JSON.stringify(body),
     }),
+  upsertBatchPolicies: (policies: Array<Record<string, unknown>>) =>
+    api<FeaturePolicyItem[]>('/access/admin/policies/batch', {
+      method: 'PUT',
+      body: JSON.stringify({ policies }),
+    }),
   createEmploymentStatus: (body: Record<string, unknown>) =>
     api<EmploymentStatusItem>('/access/admin/employment-statuses', {
       method: 'POST',
