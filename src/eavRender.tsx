@@ -1,11 +1,55 @@
 import type { ReactNode } from 'react';
 import type { BuilderField, EavRecord, FieldShow } from './api';
 
-export function formatNominal(value: string | undefined | null): string {
-  if (!value) return '';
-  const n = Number(value);
-  if (Number.isNaN(n)) return value;
-  return 'Rp ' + n.toLocaleString('id-ID');
+export function formatNominal(value: string | number | undefined | null): string {
+  if (value === undefined || value === null || value === '') return '';
+  const str = String(value).trim();
+  const isNegative = str.startsWith('-');
+  const clean = str.replace(/[^0-9]/g, '');
+  if (!clean) return str;
+  const n = Number(clean);
+  if (Number.isNaN(n)) return str;
+  return (isNegative ? '- Rp. ' : 'Rp. ') + n.toLocaleString('id-ID');
+}
+
+export function RupiahInput({
+  value,
+  onChange,
+  disabled = false,
+  readOnly = false,
+  placeholder = '0',
+  className = '',
+}: {
+  value: string | number | undefined | null;
+  onChange: (val: string) => void;
+  disabled?: boolean;
+  readOnly?: boolean;
+  placeholder?: string;
+  className?: string;
+}) {
+  const str = value !== undefined && value !== null ? String(value).trim() : '';
+  const clean = str.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+  const display = clean ? Number(clean).toLocaleString('id-ID') : '';
+
+  return (
+    <div className={`input-group ${className}`}>
+      <div className="input-group-prepend">
+        <span className="input-group-text font-weight-bold bg-light text-dark">Rp.</span>
+      </div>
+      <input
+        type="text"
+        className="form-control font-weight-bold"
+        placeholder={placeholder}
+        value={display}
+        disabled={disabled}
+        readOnly={readOnly}
+        onChange={(e) => {
+          const raw = e.target.value.replace(/[^0-9]/g, '').replace(/^0+(?=\d)/, '');
+          onChange(raw);
+        }}
+      />
+    </div>
+  );
 }
 
 export function formatDate(value: string | undefined | null): string {
@@ -34,7 +78,9 @@ export function resolveDariTabel(
   const src = field.data_source?.entitySource;
   const fsrc = field.data_source?.fieldSource;
   if (src && sourceOptions?.[src]) {
-    const found = sourceOptions[src].find((r) => r.recordCode === value);
+    const found = sourceOptions[src].find(
+      (r) => r.recordCode === value || (fsrc && r.values[fsrc] === value),
+    );
     if (found) return fsrc ? (found.values[fsrc] ?? value) : value;
   }
   return value;
@@ -62,24 +108,39 @@ interface RenderCtx {
   record?: Record<string, string>;
   sourceOptions?: Record<string, EavRecord[]>;
   fieldShows?: FieldShow[];
+  entityCode?: string;
 }
 
 import EmployeeCard from './components/EmployeeCard';
 
-export function isEmployeeField(field: BuilderField): boolean {
+export function isEmployeeField(field: BuilderField, _currentEntityCode?: string): boolean {
   const type = (field.type ?? '').toUpperCase();
   const code = (field.code ?? '').toUpperCase();
   const name = (field.name ?? '').toUpperCase();
   const src = (field.data_source?.entitySource ?? '').toUpperCase();
 
+  // Field nama atau text/gabungan SELALU BUKAN employee reference picker/chip
+  if (
+    code.includes('NAMA') ||
+    name.includes('NAMA') ||
+    code === 'FULL-NAME' ||
+    type === 'TEXT' ||
+    type === 'GABUNGAN'
+  ) {
+    return false;
+  }
+
+  // Jika field memiliki data_source ke tabel selain KARYAWAN (misal: DATABASE-AGAMA, PERUSAHAAN, dll),
+  // MAKA PASTI BUKAN employee reference picker! Sesuai tabel & field yang dikonfigurasi.
+  if (src && src !== 'KARYAWAN') {
+    return false;
+  }
+
+  // Tipe data NRP atau kode NRP di tabel manapun (termasuk KARYAWAN) atau relasi DARI-TABEL/REFERENCE ke KARYAWAN
   return (
     type === 'NRP' ||
     code === 'NRP' ||
-    name === 'NRP' ||
-    name.includes('KARYAWAN') ||
-    src === 'KARYAWAN' ||
-    src === 'IDENTITAS-KARYAWAN' ||
-    src === 'STATUS-KERJA-KARYAWAN'
+    ((type === 'REFERENCE' || type === 'DARI-TABEL') && (src === 'KARYAWAN' || code === 'NRP'))
   );
 }
 
@@ -89,14 +150,35 @@ export function renderFieldValue(
   value: string | undefined | null,
   ctx: RenderCtx = {},
 ): ReactNode {
+  // Nama karyawan atau field nama teks lainnya SELALU text biasa tanpa gambar dll
+  const codeUpper = (field.code ?? '').toUpperCase();
+  const nameUpper = (field.name ?? '').toUpperCase();
+  if (
+    codeUpper.includes('NAMA') ||
+    nameUpper.includes('NAMA') ||
+    codeUpper === 'FULL-NAME'
+  ) {
+    return value ?? '';
+  }
+
   const type = (field.type ?? 'TEXT').toUpperCase();
 
-  // Jika field ini adalah NRP atau referensi Karyawan, tampilkan kartu karyawan lengkap (foto, nama, jabatan, status kerja)
-  if (isEmployeeField(field) && value) {
+  // Tampilkan EmployeeCard chip untuk field NRP atau referensi karyawan di semua tabel (termasuk tabel KARYAWAN)
+  const isNrpOrEmployee =
+    codeUpper === 'NRP' ||
+    type === 'NRP' ||
+    isEmployeeField(field, ctx.entityCode);
+
+  if (isNrpOrEmployee && value) {
     const empRecords = ctx.sourceOptions?.['KARYAWAN'] ?? [];
-    const empRecord = empRecords.find(
-      (r) => r.recordCode === value || r.values?.['NRP'] === value || r.values?.['nik_employee'] === value,
-    );
+    const empRecord =
+      empRecords.find(
+        (r) =>
+          r.recordCode === value ||
+          r.values?.['NRP'] === value ||
+          r.values?.['nik_employee'] === value,
+      ) || ctx.record;
+
     return <EmployeeCard nrp={value} data={empRecord} mode="chip" />;
   }
 

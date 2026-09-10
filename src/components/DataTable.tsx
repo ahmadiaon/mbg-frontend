@@ -8,6 +8,8 @@ export interface DataTableColumn<T> {
   render?: (row: T) => ReactNode;
   filterable?: boolean; // tampilkan filter (searchable select) di kolom ini
   getValue?: (row: T) => string; // nilai mentah untuk search & filter
+  renderFilterOption?: (value: string) => ReactNode;
+  getFilterSearchText?: (value: string) => string;
 }
 
 interface DataTableProps<T> {
@@ -126,6 +128,8 @@ export default function DataTable<T>({
               options={optionsFor(col)}
               value={activeFilters[col.key] ?? []}
               onChange={(vals) => setFilter(col.key, vals)}
+              renderOption={col.renderFilterOption}
+              getSearchText={col.getFilterSearchText}
             />
           ))}
         </div>

@@ -264,3 +264,284 @@ export default function EmployeeCard({
     </div>
   );
 }
+
+// Item ringkas berfoto & nama untuk dropdown filter atau autocomplete
+export function EmployeeFilterItem({
+  nrp,
+  data,
+}: {
+  nrp: string;
+  data?: Record<string, any> | EavRecord;
+}) {
+  const info = extractEmployeeInfo(nrp, data);
+  const statusUpper = (info.status || '').toUpperCase();
+  const isAktif = statusUpper === 'AKTIF' || statusUpper === 'PKWTT' || statusUpper === 'PKWT';
+
+  return (
+    <div className="d-flex align-items-center py-1 text-left" style={{ gap: '10px', minWidth: '220px' }}>
+      <EmployeeAvatar
+        photoUrl={info.avatarUrl}
+        hasCustomPhoto={info.hasCustomPhoto}
+        nama={info.nama}
+        size={36}
+      />
+      <div style={{ lineHeight: '1.25', minWidth: 0, overflow: 'hidden' }}>
+        <div className="d-flex align-items-center flex-wrap gap-1">
+          <span className="font-12 weight-700 text-dark text-truncate" title={info.nama}>
+            {info.nama}
+          </span>
+          {info.status && (
+            <span
+              className={`badge badge-pill ${isAktif ? 'badge-success' : 'badge-warning'} ml-1`}
+              style={{ fontSize: '8px', padding: '1px 4px', fontWeight: 600 }}
+            >
+              {info.status}
+            </span>
+          )}
+        </div>
+        <div className="font-11 text-primary weight-600">
+          {info.nrp}
+          {info.jabatan && (
+            <span className="text-secondary font-11 font-weight-normal ml-1">
+              • {info.jabatan.replace(/-/g, ' ')}
+            </span>
+          )}
+        </div>
+        {info.perusahaan && (
+          <div className="font-10 text-muted text-truncate">
+            {info.perusahaan.replace(/-/g, ' ')}
+            {info.project ? ` (${info.project})` : ''}
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
+// Selector Karyawan Interaktif dengan Pencarian Nama/NRP & Card Preview
+export function EmployeeSelectInput({
+  value,
+  onChange,
+  options,
+  placeholder = 'Pilih Karyawan…',
+  disabled = false,
+  readOnly = false,
+  allowCustomText = false,
+}: {
+  value: string;
+  onChange: (val: string) => void;
+  options: EavRecord[];
+  placeholder?: string;
+  disabled?: boolean;
+  readOnly?: boolean;
+  allowCustomText?: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const [search, setSearch] = useState('');
+  const dropdownRef = React.useRef<HTMLDivElement>(null);
+
+  // Cari data karyawan aktif yang dipilih
+  const selectedEmp = React.useMemo(
+    () => options.find((r) => r.recordCode === value || r.values?.['NRP'] === value),
+    [options, value],
+  );
+
+  React.useEffect(() => {
+    function onDocClick(e: MouseEvent) {
+      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
+        setOpen(false);
+      }
+    }
+    document.addEventListener('mousedown', onDocClick);
+    return () => document.removeEventListener('mousedown', onDocClick);
+  }, []);
+
+  const filtered = React.useMemo(() => {
+    if (!search.trim()) return options.slice(0, 60);
+    const q = search.toLowerCase();
+    return options
+      .filter((r) => {
+        const nrp = (r.recordCode || r.values?.['NRP'] || '').toLowerCase();
+        const nama = (r.values?.['NAMA-KARYAWAN'] || r.values?.['FULL-NAME'] || '').toLowerCase();
+        const jabatan = (r.values?.['JABATAN'] || '').toLowerCase();
+        const perusahaan = (r.values?.['PERUSAHAAN'] || '').toLowerCase();
+        return nrp.includes(q) || nama.includes(q) || jabatan.includes(q) || perusahaan.includes(q);
+      })
+      .slice(0, 60);
+  }, [options, search]);
+
+  if (disabled || readOnly) {
+    return (
+      <div>
+        <input
+          type="text"
+          className="form-control bg-light text-muted font-weight-bold"
+          value={value}
+          readOnly
+          disabled
+        />
+        {value && (
+          <div className="mt-2">
+            <EmployeeCard nrp={value} data={selectedEmp} mode="full" />
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  return (
+    <div className="position-relative" ref={dropdownRef}>
+      {/* Box pilihan karyawan aktif */}
+      {value ? (
+        <div className="border rounded p-2 bg-white shadow-sm d-flex align-items-center justify-content-between">
+          <div className="flex-grow-1 mr-2 overflow-hidden">
+            <EmployeeFilterItem nrp={value} data={selectedEmp} />
+          </div>
+          <div className="d-flex align-items-center flex-shrink-0" style={{ gap: '4px' }}>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-primary"
+              onClick={() => {
+                setOpen(true);
+                setSearch('');
+              }}
+              title="Ganti Karyawan"
+            >
+              <i className="bi bi-arrow-repeat mr-1"></i> Ganti
+            </button>
+            <button
+              type="button"
+              className="btn btn-sm btn-outline-danger"
+              onClick={() => onChange('')}
+              title="Hapus Pilihan"
+            >
+              <i className="bi bi-x"></i>
+            </button>
+          </div>
+        </div>
+      ) : (
+        <button
+          type="button"
+          className="btn btn-outline-secondary form-control text-left d-flex justify-content-between align-items-center"
+          onClick={() => {
+            setOpen((o) => !o);
+            setSearch('');
+          }}
+        >
+          <span className="text-muted font-13">
+            <i className="bi bi-person-bounding-box mr-2 text-primary"></i> {placeholder}
+          </span>
+          <i className={`bi ${open ? 'bi-chevron-up' : 'bi-chevron-down'} text-muted`}></i>
+        </button>
+      )}
+
+      {/* Dropdown Popover dengan Card Pencarian */}
+      {open && (
+        <div
+          className="dropdown-menu show p-2 shadow-lg border"
+          style={{
+            position: 'absolute',
+            left: 0,
+            top: '100%',
+            zIndex: 1060,
+            width: '100%',
+            minWidth: '340px',
+            maxWidth: '520px',
+            borderRadius: '8px',
+          }}
+        >
+          <div className="input-group input-group-sm mb-2">
+            <div className="input-group-prepend">
+              <span className="input-group-text bg-light">
+                <i className="bi bi-search"></i>
+              </span>
+            </div>
+            <input
+              type="text"
+              className="form-control"
+              placeholder="Cari nama, NRP, jabatan, atau perusahaan…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              autoFocus
+            />
+            {search && (
+              <div className="input-group-append">
+                <button
+                  type="button"
+                  className="btn btn-outline-secondary"
+                  onClick={() => setSearch('')}
+                >
+                  <i className="bi bi-x"></i>
+                </button>
+              </div>
+            )}
+          </div>
+
+          <div style={{ maxHeight: '270px', overflowY: 'auto' }}>
+            {filtered.map((emp) => {
+              const nrp = emp.recordCode || emp.values?.['NRP'];
+              const isSelected = nrp === value;
+              return (
+                <div
+                  key={nrp}
+                  className="p-2 rounded mb-1 border"
+                  style={{
+                    cursor: 'pointer',
+                    backgroundColor: isSelected ? '#eff6ff' : '#ffffff',
+                    borderColor: isSelected ? '#3b82f6' : '#e2e8f0',
+                  }}
+                  onClick={() => {
+                    onChange(nrp);
+                    setOpen(false);
+                  }}
+                >
+                  <EmployeeFilterItem nrp={nrp} data={emp} />
+                </div>
+              );
+            })}
+
+            {filtered.length === 0 && (
+              <div className="text-center py-3 text-muted font-12">
+                Tidak ada karyawan yang cocok dengan &quot;{search}&quot;.
+                {allowCustomText && search.trim() && (
+                  <div className="mt-2">
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-primary"
+                      onClick={() => {
+                        onChange(search.trim());
+                        setOpen(false);
+                      }}
+                    >
+                      Gunakan &quot;{search}&quot; sebagai kode manual
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="border-top mt-2 pt-2 d-flex justify-content-between align-items-center font-11 text-muted">
+            <span>
+              Menampilkan {filtered.length} dari {options.length} karyawan
+            </span>
+            <button
+              type="button"
+              className="btn btn-link btn-sm p-0 font-11"
+              onClick={() => setOpen(false)}
+            >
+              Tutup
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* Tampilkan EmployeeCard full di bawahnya jika sudah dipilih dan dropdown tutup */}
+      {value && !open && (
+        <div className="mt-2">
+          <EmployeeCard nrp={value} data={selectedEmp} mode="full" />
+        </div>
+      )}
+    </div>
+  );
+}

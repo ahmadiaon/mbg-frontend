@@ -12,8 +12,8 @@ import { slugify } from '../profile';
 import { useAuth } from '../auth';
 import { useEav } from '../context/EavContext';
 import DataTable from '../components/DataTable';
-import { renderFieldValue, isEmployeeField } from '../eavRender';
-import EmployeeCard from '../components/EmployeeCard';
+import { renderFieldValue, isEmployeeField, RupiahInput } from '../eavRender';
+import EmployeeCard, { EmployeeFilterItem, EmployeeSelectInput } from '../components/EmployeeCard';
 import PhotoProfileCropperModal from '../components/PhotoProfileCropperModal';
 
 type FlatRow = { __recordCode: string; __recordUuid: string } & Record<string, string>;
@@ -24,6 +24,7 @@ export default function DatabaseData() {
     entities,
     fieldShows,
     persetujuan,
+    masterRecords,
     fetchMasterRecords,
     fetchSchema,
   } = useEav();
@@ -43,6 +44,8 @@ export default function DatabaseData() {
   const [historicalValues, setHistoricalValues] = useState<Record<string, string>>({});
   const [historyRows, setHistoryRows] = useState<unknown[]>([]);
   const [familyData, setFamilyData] = useState<Record<string, unknown> | null>(null);
+  const [familyLoading, setFamilyLoading] = useState(false);
+  const [showModalTab, setShowModalTab] = useState<'all' | 'main' | 'child' | 'approval'>('all');
   const [approvalConfig, setApprovalConfig] = useState<PersetujuanStep[]>([]);
   const [approvalRows, setApprovalRows] = useState<ApprovalDataRow[]>([]);
   const [approvalLoading, setApprovalLoading] = useState(false);
@@ -85,6 +88,41 @@ export default function DatabaseData() {
   useEffect(() => {
     load();
   }, [load]);
+
+  // Pastikan master records untuk semua field DARI-TABEL selalu ter-load otomatis
+  useEffect(() => {
+    if (!selectedEntity) return;
+    const children = Object.values(entities).filter((e) => e.parentId === selectedEntity.id);
+    const all = [
+      ...Object.values(selectedEntity.fields ?? {}),
+      ...children.flatMap((c) => Object.values(c.fields ?? {})),
+    ];
+    for (const f of all) {
+      const src = f.data_source?.entitySource;
+      if (src && !sourceOptions[src]?.length && !masterRecords[src]?.length) {
+        void fetchMasterRecords(src).then((recs) => {
+          if (recs?.length) {
+            setSourceOptions((prev) => ({ ...prev, [src]: recs }));
+          }
+        });
+      }
+    }
+    const needsKaryawan =
+      selectedEntity.code === 'KARYAWAN' ||
+      all.some(
+        (f) =>
+          f.code.toUpperCase() === 'NRP' ||
+          f.type.toUpperCase() === 'NRP' ||
+          isEmployeeField(f, selectedEntity.code),
+      );
+    if (needsKaryawan && !sourceOptions['KARYAWAN']?.length && !masterRecords['KARYAWAN']?.length) {
+      void fetchMasterRecords('KARYAWAN').then((recs) => {
+        if (recs?.length) {
+          setSourceOptions((prev) => ({ ...prev, KARYAWAN: recs }));
+        }
+      });
+    }
+  }, [selectedEntity, entities, sourceOptions, masterRecords, fetchMasterRecords]);
 
   async function refreshRecords(code: string) {
     setRecordsLoading(true);
@@ -132,7 +170,9 @@ export default function DatabaseData() {
         (f.type ?? '').toUpperCase(),
       ),
     );
-    const hasEmployee = combinedFields.some((f) => isEmployeeField(f));
+    const hasEmployee =
+      code === 'KARYAWAN' ||
+      combinedFields.some((f) => isEmployeeField(f, entity.code));
 
     try {
       const [recs, srcMap] = await Promise.all([
@@ -156,6 +196,9 @@ export default function DatabaseData() {
         })(),
       ]);
       setRecords(recs);
+      if (code === 'KARYAWAN' && !srcMap['KARYAWAN']) {
+        srcMap['KARYAWAN'] = recs;
+      }
       setSourceOptions(srcMap);
     } finally {
       setRecordsLoading(false);
@@ -164,12 +207,23 @@ export default function DatabaseData() {
 
   const flatData = useMemo<FlatRow[]>(
     () =>
-      records.map((r) => ({
-        __recordCode: r.recordCode,
-        __recordUuid: r.recordUuid,
-        ...r.values,
-      })),
-    [records],
+      records.map((r) => {
+        const row: FlatRow = {
+          __recordCode: r.recordCode,
+          __recordUuid: r.recordUuid,
+          ...r.values,
+        };
+        const pField = primaryField || selectedEntity?.primaryCode || 'NRP';
+        if (pField && !row[pField]) {
+          row[pField] = r.recordCode;
+        }
+        const nrpField = selectedFields.find((f) => f.code.toUpperCase() === 'NRP');
+        if (nrpField && !row[nrpField.code]) {
+          row[nrpField.code] = r.recordCode;
+        }
+        return row;
+      }),
+    [records, primaryField, selectedEntity, selectedFields],
   );
 
   // ===== Form =====
@@ -191,7 +245,17 @@ export default function DatabaseData() {
   }
 
   function editRecord(r: EavRecord) {
-    setFormValues({ ...r.values });
+    const vals = { ...r.values };
+    const pField = primaryField || selectedEntity?.primaryCode || 'NRP';
+    if (pField && (!vals[pField] || vals[pField] === '')) {
+      vals[pField] = r.recordCode;
+    }
+    const nrpField = selectedFields.find((f) => f.code.toUpperCase() === 'NRP');
+    if (nrpField && (!vals[nrpField.code] || vals[nrpField.code] === '')) {
+      vals[nrpField.code] = r.recordCode;
+    }
+
+    setFormValues(vals);
     setEditRecordCode(r.recordCode);
 
     if (selectedEntity) {
@@ -224,6 +288,42 @@ export default function DatabaseData() {
       });
       setChildFormValues(newChildValues);
       setChildOpen(newChildOpen);
+
+      // Muat data aktual child (seperti PENGGAJIHAN-KARYAWAN dsb.) secara async
+      eavApi
+        .family(selectedEntity.code, r.recordCode)
+        .then((fam) => {
+          if (!fam) return;
+          const familyObj = (
+            fam as {
+              records?: Record<
+                string,
+                Array<{ recordCode: string; values?: Record<string, string> }>
+              >;
+            }
+          ).records;
+          if (!familyObj) return;
+
+          setChildFormValues((prev) => {
+            const updated = { ...prev };
+            for (const child of children) {
+              const childRows = familyObj[child.code];
+              const matchedRow =
+                childRows?.find((row) => row.recordCode === r.recordCode) ||
+                childRows?.[0];
+              if (matchedRow && matchedRow.values) {
+                updated[child.code] = {
+                  ...updated[child.code],
+                  ...matchedRow.values,
+                };
+              }
+            }
+            return updated;
+          });
+        })
+        .catch((err) => {
+          console.warn('Gagal memuat data child family:', err);
+        });
     }
 
     // Scroll form ke tampilan
@@ -233,8 +333,17 @@ export default function DatabaseData() {
   async function showRecord(r: EavRecord) {
     setActionRecord(r);
     setActionMode('show');
-    setFamilyData(await eavApi.family(selected, r.recordCode).catch(() => null));
+    setShowModalTab('all');
+    setFamilyData(null);
+    setFamilyLoading(true);
     setApprovalLoading(true);
+
+    eavApi
+      .family(selected, r.recordCode)
+      .then((fam) => setFamilyData(fam as Record<string, unknown>))
+      .catch(() => setFamilyData(null))
+      .finally(() => setFamilyLoading(false));
+
     approvalApi
       .data(selected, r.recordCode)
       .then(setApprovalRows)
@@ -315,18 +424,27 @@ export default function DatabaseData() {
 
   async function store() {
     if (!selectedEntity) return;
-    if (!primaryField || !formValues[primaryField]) {
+    const pField = primaryField || selectedEntity.primaryCode || 'NRP';
+    const effectiveCode = editRecordCode || (pField ? formValues[pField] : '');
+    if (!effectiveCode) {
       setError('Isi field primary terlebih dahulu');
       return;
     }
     setBusy(true);
     setError('');
     try {
-      const recordCode = slugify(formValues[primaryField]);
+      const recordCode = editRecordCode || slugify(formValues[pField] || effectiveCode);
       const cleaned: Record<string, string> = {};
       for (const f of selectedFields) {
         const val = formValues[f.code];
         if (val !== undefined && val !== '') cleaned[f.code] = val;
+      }
+      if (pField && !cleaned[pField]) {
+        cleaned[pField] = recordCode;
+      }
+      const nrpField = selectedFields.find((f) => f.code.toUpperCase() === 'NRP');
+      if (nrpField && !cleaned[nrpField.code]) {
+        cleaned[nrpField.code] = recordCode;
       }
       await eavApi.storeRecord(selectedEntity.code, { recordCode, values: cleaned });
       if (!editRecordCode && approvalConfig.length > 0) {
@@ -395,14 +513,42 @@ export default function DatabaseData() {
     }
   }
 
-  const handleApplyCrop = (croppedDataUrl: string) => {
+  const handleApplyCrop = async (croppedDataUrl: string) => {
     if (!cropTargetField) return;
-    if (cropTargetEntity && selectedEntity && cropTargetEntity !== selectedEntity.code) {
-      setChildValue(cropTargetEntity, cropTargetField, croppedDataUrl);
+    const targetField = cropTargetField;
+    const targetEntity = cropTargetEntity;
+
+    // Tampilkan preview instan di form
+    if (targetEntity && selectedEntity && targetEntity !== selectedEntity.code) {
+      setChildValue(targetEntity, targetField, croppedDataUrl);
     } else {
-      setValue(cropTargetField, croppedDataUrl);
+      setValue(targetField, croppedDataUrl);
     }
     setCropperOpen(false);
+
+    // Unggah file foto profil terkompresi langsung ke local assets (folder foto-profil)
+    try {
+      const currentCode =
+        editRecordCode || (primaryField ? formValues[primaryField] : null) || 'karyawan';
+      const cleanCode = slugify(currentCode) || 'profil';
+      const filename = `${cleanCode}-${Date.now()}.jpg`;
+
+      // Konversi dataURL base64 ke File
+      const res = await fetch(croppedDataUrl);
+      const blob = await res.blob();
+      const file = new File([blob], filename, { type: 'image/jpeg' });
+
+      const uploaded = await eavApi.uploadAsset(file, 'foto-profil', filename);
+      if (uploaded && uploaded.url) {
+        if (targetEntity && selectedEntity && targetEntity !== selectedEntity.code) {
+          setChildValue(targetEntity, targetField, uploaded.url);
+        } else {
+          setValue(targetField, uploaded.url);
+        }
+      }
+    } catch (err) {
+      console.warn('Gagal mengunggah ke assets lokal, tetap memakai dataUrl:', err);
+    }
   };
 
   async function removeRecord(r: EavRecord) {
@@ -458,20 +604,37 @@ export default function DatabaseData() {
     if (type === 'HIDDEN') return null;
 
     if (isLocked) {
+      const displayVal = val || editRecordCode || '';
+      const isChild = entityCode && selectedEntity && entityCode !== selectedEntity.code;
+      const isNrp = f.code.toUpperCase() === 'NRP' || type === 'NRP';
+      const empList = sourceOptions['KARYAWAN'] ?? masterRecords['KARYAWAN'] ?? [];
+      const selectedEmp = isNrp
+        ? empList.find(
+            (r) => r.recordCode === displayVal || r.values?.['NRP'] === displayVal,
+          ) || formValues
+        : null;
+
       return (
-        <div className="input-group">
-          <input
-            type="text"
-            className="form-control bg-light text-muted"
-            value={val}
-            readOnly
-            disabled
-          />
-          <div className="input-group-append">
-            <span className="input-group-text bg-light text-muted font-12">
-              <i className="bi bi-lock-fill mr-1"></i> Terkunci (Parent)
-            </span>
+        <div>
+          <div className="input-group">
+            <input
+              type="text"
+              className="form-control bg-light text-muted font-weight-bold"
+              value={displayVal}
+              readOnly
+              disabled
+            />
+            <div className="input-group-append">
+              <span className="input-group-text bg-light text-muted font-12">
+                <i className="bi bi-lock-fill mr-1"></i> {isChild ? 'Terkunci (Parent)' : 'Kode Data (Read-only)'}
+              </span>
+            </div>
           </div>
+          {isNrp && displayVal && !isChild && (
+            <div className="mt-2">
+              <EmployeeCard nrp={displayVal} data={selectedEmp || undefined} mode="full" />
+            </div>
+          )}
         </div>
       );
     }
@@ -619,70 +782,132 @@ export default function DatabaseData() {
 
     if (type === 'NOMINAL-UANG') {
       return (
+        <RupiahInput
+          value={val}
+          onChange={onChange}
+          disabled={isLocked}
+          readOnly={isLocked}
+        />
+      );
+    }
+
+    const codeUpper = (f.code ?? '').toUpperCase();
+    const nameUpper = (f.name ?? '').toUpperCase();
+
+    // Nama karyawan atau field nama teks lainnya SELALU input teks biasa, BUKAN select option
+    if (codeUpper.includes('NAMA') || nameUpper.includes('NAMA') || codeUpper === 'FULL-NAME') {
+      return (
         <input
-          type="number"
+          type="text"
           className="form-control"
+          placeholder={`Masukkan ${f.name}`}
           value={val}
           onChange={(e) => onChange(e.target.value)}
         />
       );
     }
 
-    if (isEmployeeField(f)) {
-      const empList = sourceOptions['KARYAWAN'] ?? [];
-      const selectedEmp = empList.find(
-        (r) => r.recordCode === val || r.values?.['NRP'] === val,
-      );
+    // Dalam tabel KARYAWAN atau IDENTITAS-KARYAWAN itu sendiri, NRP data baru adalah input teks biasa
+    if (
+      (entityCode === 'KARYAWAN' || entityCode === 'IDENTITAS-KARYAWAN') &&
+      (codeUpper === 'NRP' || type === 'NRP')
+    ) {
       return (
-        <div>
-          {empList.length > 0 ? (
-            <select
-              className="form-control"
-              value={val}
-              onChange={(e) => onChange(e.target.value)}
-            >
-              <option value="">-- Pilih {f.name} --</option>
-              {empList.map((emp) => {
-                const nama = emp.values['NAMA-KARYAWAN'] || emp.values['FULL-NAME'] || emp.recordCode;
-                const jabatan = emp.values['JABATAN'] ? ` (${emp.values['JABATAN'].replace(/-/g, ' ')})` : '';
-                return (
-                  <option key={emp.recordCode} value={emp.recordCode}>
-                    {emp.recordCode} — {nama} {jabatan}
-                  </option>
-                );
-              })}
-            </select>
-          ) : (
-            <input
-              type="text"
-              className="form-control"
-              placeholder={`Masukkan ${f.name} (contoh: MBLE-0422003)`}
-              value={val}
-              onChange={(e) => onChange(e.target.value)}
-            />
-          )}
-          {val && (
-            <div className="mt-2">
-              <EmployeeCard nrp={val} data={selectedEmp} mode="full" />
-            </div>
-          )}
-        </div>
+        <input
+          type="text"
+          className="form-control"
+          placeholder="Masukkan NRP (contoh: MBLE-0422003)"
+          value={val}
+          onChange={(e) => onChange(e.target.value)}
+        />
       );
     }
 
+    // Sifat DARI-TABEL / REFERENCE / INPUT-AUTOCOMPLITE:
+    // Selalu ambil opsi dari entitySource dan tampilkan fieldSource yang sudah dikonfigurasi!
     if (['DARI-TABEL', 'INPUT-AUTOCOMPLITE', 'REFERENCE'].includes(type)) {
       const src = f.data_source?.entitySource;
       const fsrc = f.data_source?.fieldSource;
-      const opts = sourceOptions[src ?? ''] ?? [];
+
+      // Jika relasi ke tabel KARYAWAN, gunakan EmployeeSelectInput dengan card agar mudah dibaca
+      if (src === 'KARYAWAN' || isEmployeeField(f, entityCode)) {
+        const empList =
+          sourceOptions['KARYAWAN']?.length
+            ? sourceOptions['KARYAWAN']
+            : masterRecords['KARYAWAN'] ?? [];
+        return (
+          <EmployeeSelectInput
+            value={val}
+            onChange={onChange}
+            options={empList}
+            placeholder={`Pilih ${f.name} (Cari Nama / NRP)…`}
+            disabled={isLocked}
+            readOnly={isLocked}
+          />
+        );
+      }
+
+      const opts =
+        src && sourceOptions[src]?.length
+          ? sourceOptions[src]
+          : src && masterRecords[src]?.length
+            ? masterRecords[src]
+            : [];
+
       return (
-        <select className="form-control" value={val} onChange={(e) => onChange(e.target.value)}>
-          <option value="">-- {f.name} --</option>
-          {opts.map((o) => (
-            <option key={o.recordCode} value={o.recordCode}>
-              {fsrc ? o.values[fsrc] ?? o.recordCode : o.recordCode}
-            </option>
-          ))}
+        <select
+          className="form-control"
+          value={val}
+          onChange={(e) => onChange(e.target.value)}
+        >
+          <option value="">-- Pilih {f.name} --</option>
+          {opts.map((o) => {
+            const label = fsrc ? o.values[fsrc] || o.recordCode : o.recordCode;
+            return (
+              <option key={o.recordCode} value={o.recordCode}>
+                {label}
+              </option>
+            );
+          })}
         </select>
+      );
+    }
+
+    // Field bertipe NRP atau referensi karyawan (di tabel transaksi maupun master)
+    if (isEmployeeField(f, entityCode) || codeUpper === 'NRP' || type === 'NRP') {
+      const empList =
+        sourceOptions['KARYAWAN']?.length
+          ? sourceOptions['KARYAWAN']
+          : masterRecords['KARYAWAN'] ?? [];
+
+      if (entityCode !== 'KARYAWAN' && entityCode !== 'IDENTITAS-KARYAWAN') {
+        return (
+          <EmployeeSelectInput
+            value={val}
+            onChange={onChange}
+            options={empList}
+            placeholder={`Pilih ${f.name} (Cari Nama / NRP)…`}
+            disabled={isLocked}
+            readOnly={isLocked}
+          />
+        );
+      }
+
+      return (
+        <div>
+          <input
+            type="text"
+            className="form-control"
+            placeholder={`Masukkan ${f.name} (contoh: MBLE-0422003)`}
+            value={val}
+            onChange={(e) => onChange(e.target.value)}
+          />
+          {val && (
+            <div className="mt-2">
+              <EmployeeCard nrp={val} data={formValues} mode="full" />
+            </div>
+          )}
+        </div>
       );
     }
 
@@ -777,18 +1002,35 @@ export default function DatabaseData() {
                     store();
                   }}
                 >
-                  {selectedFields.map((f) => (
-                    <div className="form-group" key={f.code}>
-                      <label className="font-14 weight-500">{f.name}</label>
-                      {renderInput(
-                        f,
-                        formValues[f.code] ?? '',
-                        (val) => setValue(f.code, val),
-                        false,
-                        selectedEntity.code,
-                      )}
-                    </div>
-                  ))}
+                  {selectedFields.map((f) => {
+                    const isPrimary =
+                      f.code === primaryField ||
+                      f.code === selectedEntity.primaryCode ||
+                      f.code.toUpperCase() === 'NRP';
+                    const isLocked = !!editRecordCode && isPrimary;
+                    const val = (formValues[f.code] ?? (isPrimary && editRecordCode ? editRecordCode : '')) as string;
+
+                    return (
+                      <div className="form-group" key={f.code}>
+                        <label className="font-14 weight-500">
+                          {f.name}
+                          {isLocked && (
+                            <span className="badge badge-secondary ml-2 font-11">
+                              <i className="bi bi-lock-fill mr-1"></i>
+                              Kode Data (Read-only)
+                            </span>
+                          )}
+                        </label>
+                        {renderInput(
+                          f,
+                          val,
+                          (newVal) => setValue(f.code, newVal),
+                          isLocked,
+                          selectedEntity.code,
+                        )}
+                      </div>
+                    );
+                  })}
                   <div className="d-flex align-items-center">
                     <button type="submit" className="btn btn-primary" disabled={busy}>
                       {busy ? 'Menyimpan…' : editRecordCode ? 'Simpan Perubahan' : 'Simpan'}
@@ -953,18 +1195,58 @@ export default function DatabaseData() {
                 columns={[
                   ...selectedFields
                     .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
-                    .map((f) => ({
-                      key: f.code,
-                      header: f.name,
-                      filterable: (f.visibility ?? 'show') !== 'block',
-                      getValue: (row: FlatRow) => row[f.code] ?? '',
-                      render: (row: FlatRow) =>
-                        renderFieldValue(f, row[f.code], {
-                          record: row,
-                          sourceOptions,
-                          fieldShows,
-                        }),
-                    })),
+                    .map((f) => {
+                      const isNrpCol =
+                        f.code.toUpperCase() === 'NRP' ||
+                        f.type.toUpperCase() === 'NRP' ||
+                        isEmployeeField(f, selectedEntity.code);
+
+                      return {
+                        key: f.code,
+                        header: f.name,
+                        filterable: (f.visibility ?? 'show') !== 'block',
+                        getValue: (row: FlatRow) => row[f.code] ?? '',
+                        render: (row: FlatRow) =>
+                          renderFieldValue(f, row[f.code], {
+                            record: row,
+                            sourceOptions,
+                            fieldShows,
+                            entityCode: selectedEntity.code,
+                          }),
+                        ...(isNrpCol
+                          ? {
+                              renderFilterOption: (val: string) => {
+                                const list = [
+                                  ...(selectedEntity.code === 'KARYAWAN' ? records : []),
+                                  ...(sourceOptions['KARYAWAN'] ?? []),
+                                  ...(masterRecords['KARYAWAN'] ?? []),
+                                ];
+                                const emp = list.find(
+                                  (r) => r.recordCode === val || r.values?.['NRP'] === val,
+                                );
+                                return <EmployeeFilterItem nrp={val} data={emp} />;
+                              },
+                              getFilterSearchText: (val: string) => {
+                                const list = [
+                                  ...(selectedEntity.code === 'KARYAWAN' ? records : []),
+                                  ...(sourceOptions['KARYAWAN'] ?? []),
+                                  ...(masterRecords['KARYAWAN'] ?? []),
+                                ];
+                                const emp = list.find(
+                                  (r) => r.recordCode === val || r.values?.['NRP'] === val,
+                                );
+                                const nama =
+                                  emp?.values?.['NAMA-KARYAWAN'] ||
+                                  emp?.values?.['FULL-NAME'] ||
+                                  '';
+                                const jabatan = emp?.values?.['JABATAN'] || '';
+                                const perusahaan = emp?.values?.['PERUSAHAAN'] || '';
+                                return `${val} ${nama} ${jabatan} ${perusahaan}`;
+                              },
+                            }
+                          : {}),
+                      };
+                    }),
                   {
                     key: 'aksi',
                     header: 'Aksi',
@@ -974,9 +1256,6 @@ export default function DatabaseData() {
                         <>
                           <button className="btn btn-sm btn-outline-secondary mr-1" title="Lihat data aktif" onClick={() => rec && showRecord(rec)}>
                             <i className="bi bi-eye"></i>
-                          </button>
-                          <button className="btn btn-sm btn-outline-dark mr-1" title="Lihat parent dan child terkait" onClick={() => rec && showRecord(rec)}>
-                            <i className="bi bi-diagram-3"></i>
                           </button>
                           <button
                             className="btn btn-sm btn-outline-primary mr-1"
@@ -1045,7 +1324,7 @@ export default function DatabaseData() {
       </div>
       {actionMode && actionRecord && (
         <div className="modal d-block" role="dialog" aria-modal="true" style={{ background: 'rgba(0,0,0,.45)' }}>
-          <div className="modal-dialog modal-lg modal-dialog-scrollable">
+          <div className="modal-dialog modal-xl modal-dialog-scrollable">
             <div className="modal-content">
               <div className="modal-header">
                 <h5 className="modal-title">{actionMode === 'show' ? 'Data Aktif' : actionMode === 'update' ? 'Update Historical' : 'Riwayat Data'} — {actionRecord.recordCode}</h5>
@@ -1054,24 +1333,216 @@ export default function DatabaseData() {
               <div className="modal-body">
                 {actionMode === 'show' && (
                   <>
-                    <h6 className="weight-600 mb-3 text-secondary">Data Kolom</h6>
-                    {selectedFields
-                      .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
-                      .map((field) => (
-                        <div className="row border-bottom py-2" key={field.code}>
-                          <div className="col-md-5 font-14 weight-600">{field.name}</div>
-                          <div className="col-md-7">
-                            {renderFieldValue(field, actionRecord.values[field.code], {
-                              record: actionRecord.values,
-                              sourceOptions,
-                              fieldShows,
-                            })}
-                          </div>
+                    {/* Navigation Pills */}
+                    <div className="d-flex flex-wrap align-items-center mb-3 pb-2 border-bottom" style={{ gap: '6px' }}>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${showModalTab === 'all' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setShowModalTab('all')}
+                      >
+                        <i className="bi bi-grid-fill mr-1"></i> Tampilkan Semua
+                      </button>
+                      <button
+                        type="button"
+                        className={`btn btn-sm ${showModalTab === 'main' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                        onClick={() => setShowModalTab('main')}
+                      >
+                        <i className="bi bi-card-text mr-1"></i> Data Utama ({selectedEntity?.name})
+                      </button>
+                      {childEntities.length > 0 && (
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${showModalTab === 'child' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                          onClick={() => setShowModalTab('child')}
+                        >
+                          <i className="bi bi-diagram-3 mr-1"></i> Sub-Tabel ({childEntities.length})
+                        </button>
+                      )}
+                      {approvalConfig.length > 0 && (
+                        <button
+                          type="button"
+                          className={`btn btn-sm ${showModalTab === 'approval' ? 'btn-primary' : 'btn-outline-secondary'}`}
+                          onClick={() => setShowModalTab('approval')}
+                        >
+                          <i className="bi bi-shield-check mr-1"></i> Alur Persetujuan ({approvalRows.length})
+                        </button>
+                      )}
+                    </div>
+
+                    {/* Data Utama */}
+                    {(showModalTab === 'all' || showModalTab === 'main') && (
+                      <div className="mb-4">
+                        <div className="d-flex align-items-center justify-content-between mb-2">
+                          <h6 className="weight-600 mb-0 text-dark">
+                            <i className="bi bi-table text-primary mr-2"></i>
+                            Data Utama — {selectedEntity?.name}
+                          </h6>
+                          <span className="badge badge-primary px-2 py-1 font-11">
+                            {actionRecord.recordCode}
+                          </span>
                         </div>
-                      ))}
+                        <div className="border rounded p-3 bg-white shadow-sm">
+                          {selectedFields
+                            .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
+                            .map((field) => (
+                              <div className="row border-bottom py-2" key={field.code}>
+                                <div className="col-md-4 font-13 weight-600 text-secondary">{field.name}</div>
+                                <div className="col-md-8 font-13 text-dark">
+                                  {renderFieldValue(
+                                    field,
+                                    actionRecord.values[field.code] ||
+                                      (field.code === primaryField || field.code.toUpperCase() === 'NRP'
+                                        ? actionRecord.recordCode
+                                        : actionRecord.values[field.code]),
+                                    {
+                                      record: actionRecord.values,
+                                      sourceOptions,
+                                      fieldShows,
+                                      entityCode: selectedEntity?.code,
+                                    },
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                        </div>
+                      </div>
+                    )}
+
+                    {/* Sub-Tabel Child Terkait */}
+                    {(showModalTab === 'all' || showModalTab === 'child') && childEntities.length > 0 && (
+                      <div className="mb-4">
+                        <div className="d-flex align-items-center justify-content-between mb-3">
+                          <h6 className="weight-600 mb-0 text-primary">
+                            <i className="bi bi-diagram-3 mr-2"></i>
+                            Tabel Child Terkait ({childEntities.length})
+                          </h6>
+                          {familyLoading && (
+                            <div className="font-12 text-muted">
+                              <span className="spinner-border spinner-border-sm mr-1 text-primary" role="status" />
+                              Memuat data sub-tabel…
+                            </div>
+                          )}
+                        </div>
+
+                        {childEntities.map((child) => {
+                          const familyRecords = (familyData as {
+                            records?: Record<
+                              string,
+                              Array<{ recordCode: string; values?: Record<string, string> }>
+                            >;
+                          })?.records;
+                          const childRows = familyRecords?.[child.code] ?? [];
+                          const childFields = Object.values(child.fields ?? {})
+                            .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
+                            .sort((a, b) => (a.sort ?? 0) - (b.sort ?? 0));
+                          const hasRows = childRows.length > 0;
+
+                          return (
+                            <details
+                              key={child.code}
+                              className="card mb-3 border shadow-sm"
+                              open={hasRows}
+                            >
+                              <summary
+                                className="card-header py-2 px-3 bg-light d-flex align-items-center justify-content-between cursor-pointer"
+                                style={{ cursor: 'pointer', listStyle: 'none' }}
+                              >
+                                <div className="d-flex align-items-center">
+                                  <i className="bi bi-diagram-2 mr-2 text-primary"></i>
+                                  <span className="weight-600 font-14 text-dark mr-2">{child.name}</span>
+                                  <span className="badge badge-pill badge-light border text-muted font-11 mr-2">{child.code}</span>
+                                  <span className="badge badge-secondary font-11 mr-2">{childFields.length} Field</span>
+                                </div>
+                                <div className="d-flex align-items-center">
+                                  <span
+                                    className={`badge badge-pill ${
+                                      hasRows ? 'badge-success' : 'badge-light border text-muted'
+                                    } font-11 mr-2`}
+                                  >
+                                    {hasRows ? `${childRows.length} Data` : 'Belum Ada Data'}
+                                  </span>
+                                  <i className="bi bi-chevron-expand text-muted font-12"></i>
+                                </div>
+                              </summary>
+
+                              <div className="card-body p-3 bg-white">
+                                {!hasRows ? (
+                                  <div className="text-muted font-12 text-center py-2">
+                                    <i className="bi bi-inbox mr-1"></i> Belum ada data pada tabel <strong>{child.name}</strong> untuk record ini.
+                                  </div>
+                                ) : childRows.length === 1 ? (
+                                  <div className="row">
+                                    {childFields.map((f) => {
+                                      const rowData = childRows[0];
+                                      const val =
+                                        rowData.values?.[f.code] ??
+                                        (f.code.toUpperCase() === 'NRP' || f.code === child.primaryCode
+                                          ? rowData.recordCode
+                                          : '');
+                                      return (
+                                        <div className="col-md-6 mb-2" key={f.code}>
+                                          <div className="p-2 border rounded bg-light h-100">
+                                            <div className="font-11 weight-600 text-muted mb-1">{f.name}</div>
+                                            <div className="font-13 weight-700 text-dark">
+                                              {renderFieldValue(f, val, {
+                                                record: rowData.values,
+                                                sourceOptions,
+                                                fieldShows,
+                                                entityCode: child.code,
+                                              }) || <span className="text-muted font-weight-normal font-12">-</span>}
+                                            </div>
+                                          </div>
+                                        </div>
+                                      );
+                                    })}
+                                  </div>
+                                ) : (
+                                  <div className="table-responsive">
+                                    <table className="table table-sm table-bordered table-striped table-hover mb-0">
+                                      <thead className="thead-light font-12">
+                                        <tr>
+                                          <th style={{ width: 45 }} className="text-center">#</th>
+                                          {childFields.map((f) => (
+                                            <th key={f.code}>{f.name}</th>
+                                          ))}
+                                        </tr>
+                                      </thead>
+                                      <tbody className="font-13">
+                                        {childRows.map((cRow, idx) => (
+                                          <tr key={cRow.recordCode || idx}>
+                                            <td className="text-center text-muted font-12 weight-600">{idx + 1}</td>
+                                            {childFields.map((f) => {
+                                              const val =
+                                                cRow.values?.[f.code] ??
+                                                (f.code.toUpperCase() === 'NRP' || f.code === child.primaryCode
+                                                  ? cRow.recordCode
+                                                  : '');
+                                              return (
+                                                <td key={f.code}>
+                                                  {renderFieldValue(f, val, {
+                                                    record: cRow.values,
+                                                    sourceOptions,
+                                                    fieldShows,
+                                                    entityCode: child.code,
+                                                  }) || <span className="text-muted font-12">-</span>}
+                                                </td>
+                                              );
+                                            })}
+                                          </tr>
+                                        ))}
+                                      </tbody>
+                                    </table>
+                                  </div>
+                                )}
+                              </div>
+                            </details>
+                          );
+                        })}
+                      </div>
+                    )}
 
                     {/* ALUR PERSETUJUAN */}
-                    {approvalConfig.length > 0 && (
+                    {(showModalTab === 'all' || showModalTab === 'approval') && approvalConfig.length > 0 && (
                       <div className="mt-4 pt-3 border-top">
                         <div className="d-flex justify-content-between align-items-center mb-3">
                           <h6 className="weight-600 mb-0 text-primary">
@@ -1128,10 +1599,22 @@ export default function DatabaseData() {
                                       <td className="weight-600">{row.level}</td>
                                       <td>{label}</td>
                                       <td>
-                                        <code>{row.nrp}</code>
-                                        {user?.nrp === row.nrp && (
-                                          <span className="badge badge-info ml-1">Anda</span>
-                                        )}
+                                        <div className="d-flex align-items-center">
+                                          <EmployeeCard
+                                            nrp={row.nrp}
+                                            data={
+                                              sourceOptions['KARYAWAN']?.find(
+                                                (r) => r.recordCode === row.nrp || r.values?.['NRP'] === row.nrp,
+                                              ) || masterRecords['KARYAWAN']?.find(
+                                                (r) => r.recordCode === row.nrp || r.values?.['NRP'] === row.nrp,
+                                              )
+                                            }
+                                            mode="chip"
+                                          />
+                                          {user?.nrp === row.nrp && (
+                                            <span className="badge badge-info ml-1">Anda</span>
+                                          )}
+                                        </div>
                                       </td>
                                       <td>
                                         {row.status === 'ACC' ? (
@@ -1188,23 +1671,63 @@ export default function DatabaseData() {
                         )}
                       </div>
                     )}
-
-                    {familyData && (
-                      <details className="mt-3" open>
-                        <summary className="font-14 weight-600">Data parent-child terkait</summary>
-                        <pre className="bg-light p-2 mt-2" style={{ maxHeight: 260, overflow: 'auto' }}>
-                          {JSON.stringify(familyData, null, 2)}
-                        </pre>
-                      </details>
-                    )}
                   </>
                 )}
                 {actionMode === 'update' && (
                   <>
                     <div className="alert alert-info">Data kiri adalah data aktif. Ubah hanya data baru di kolom kanan.</div>
                     <div className="form-group"><label>Jenis Perubahan</label><select className="form-control" value={changeTypeCode} onChange={(e) => setChangeTypeCode(e.target.value)}><option value="">-- pilih jenis perubahan --</option>{changeTypes.map((type) => <option key={type.code} value={type.code}>{type.type} — {type.description}</option>)}</select></div>
-                    <div className="row font-12 font-weight-bold border-bottom pb-2"><div className="col-md-6">Data Sebelumnya</div><div className="col-md-6">Data Perubahan</div></div>
-                    {selectedFields.filter((f) => f.type.toUpperCase() !== 'HIDDEN').map((field) => <div className="row border-bottom py-2" key={field.code}><div className="col-md-6">{renderFieldValue(field, actionRecord.values[field.code], { record: actionRecord.values, sourceOptions, fieldShows })}</div><div className="col-md-6"><label className="font-12">{field.name}</label><input className="form-control form-control-sm" value={historicalValues[field.code] ?? ''} onChange={(e) => setHistoricalValues((values) => ({ ...values, [field.code]: e.target.value }))} /></div></div>)}
+                    {selectedFields
+                      .filter((f) => f.type.toUpperCase() !== 'HIDDEN')
+                      .map((field) => {
+                        const isPrimary =
+                          field.code === primaryField ||
+                          field.code === selectedEntity?.primaryCode ||
+                          field.code.toUpperCase() === 'NRP';
+                        return (
+                          <div className="row border-bottom py-2" key={field.code}>
+                            <div className="col-md-6">
+                              {renderFieldValue(
+                                field,
+                                actionRecord.values[field.code] || (isPrimary ? actionRecord.recordCode : actionRecord.values[field.code]),
+                                {
+                                  record: actionRecord.values,
+                                  sourceOptions,
+                                  fieldShows,
+                                  entityCode: selectedEntity?.code,
+                                },
+                              )}
+                            </div>
+                            <div className="col-md-6">
+                              <label className="font-12">
+                                {field.name}
+                                {isPrimary && <span className="text-muted ml-1">(Kode Data)</span>}
+                              </label>
+                              {field.type.toUpperCase() === 'NOMINAL-UANG' ? (
+                                <RupiahInput
+                                  value={isPrimary ? actionRecord.recordCode : (historicalValues[field.code] ?? '')}
+                                  onChange={(raw) =>
+                                    setHistoricalValues((values) => ({ ...values, [field.code]: raw }))
+                                  }
+                                  disabled={isPrimary}
+                                  readOnly={isPrimary}
+                                  className="input-group-sm"
+                                />
+                              ) : (
+                                <input
+                                  className={`form-control form-control-sm ${isPrimary ? 'bg-light text-muted' : ''}`}
+                                  value={isPrimary ? actionRecord.recordCode : (historicalValues[field.code] ?? '')}
+                                  disabled={isPrimary}
+                                  readOnly={isPrimary}
+                                  onChange={(e) =>
+                                    setHistoricalValues((values) => ({ ...values, [field.code]: e.target.value }))
+                                  }
+                                />
+                              )}
+                            </div>
+                          </div>
+                        );
+                      })}
                   </>
                 )}
                 {actionMode === 'history' && (historyRows.length ? historyRows.map((item, index) => <pre className="bg-light p-2" key={index}>{JSON.stringify(item, null, 2)}</pre>) : <p className="text-muted">Belum ada histori.</p>)}

@@ -314,9 +314,9 @@ export default function PhotoProfileCropperModal({
     const img = imgRef.current;
 
     const outCanvas = document.createElement('canvas');
-    // Standar cetak & display 3:4 yang tajam: 600 x 800 px
-    outCanvas.width = 600;
-    outCanvas.height = 800;
+    // Standar 3:4 potret (tinggi lebih panjang) terkompresi ringan & tajam: 360 x 480 px (~20-35 KB)
+    outCanvas.width = 360;
+    outCanvas.height = 480;
     const ctx = outCanvas.getContext('2d');
     if (!ctx) return;
 
@@ -328,11 +328,11 @@ export default function PhotoProfileCropperModal({
       cropBox.height,
       0,
       0,
-      600,
-      800,
+      360,
+      480,
     );
 
-    const dataUrl = outCanvas.toDataURL('image/jpeg', 0.88);
+    const dataUrl = outCanvas.toDataURL('image/jpeg', 0.78);
     onApplyCrop(dataUrl);
     onClose();
   };
