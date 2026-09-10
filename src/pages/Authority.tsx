@@ -1,9 +1,16 @@
 import { useEffect, useMemo, useState } from 'react';
+import { useEav } from '../context/EavContext';
+import {
+  EmployeeFilterItem,
+  EmployeeSelectInput,
+} from '../components/EmployeeCard';
 import {
   authorityAdminApi,
+  type EavRecord,
   type EmploymentStatusItem,
   type FeatureDefinitionItem,
   type RoleLevelItem,
+  type UserFeatureAccessItem,
 } from '../api';
 
 const STANDARD_ACTIONS = [
@@ -71,21 +78,46 @@ function formatDate(value: string | null) {
 }
 
 export default function Authority() {
+  const { fetchMasterRecords } = useEav();
+
   const [roles, setRoles] = useState<RoleLevelItem[]>([]);
   const [features, setFeatures] = useState<FeatureDefinitionItem[]>([]);
   const [statuses, setStatuses] = useState<EmploymentStatusItem[]>([]);
   const [users, setUsers] = useState<{ id: number; nrp: string; name: string }[]>([]);
+  const [userFeatures, setUserFeatures] = useState<UserFeatureAccessItem[]>([]);
+  const [karyawanRecords, setKaryawanRecords] = useState<EavRecord[]>([]);
+
   const [selectedRole, setSelectedRole] = useState(1);
   const [viewMode, setViewMode] = useState<'matrix' | 'global'>('matrix');
   const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
-  const [tab, setTab] = useState<'matrix' | 'roles' | 'status'>('matrix');
+  const [tab, setTab] = useState<'matrix' | 'user-features' | 'roles' | 'status'>('matrix');
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [error, setError] = useState('');
   const [hasChanges, setHasChanges] = useState(false);
   const [showAddFeatureModal, setShowAddFeatureModal] = useState(false);
+
+  // Akses Fitur Karyawan (User Overrides) State
+  const [userFeatureSearch, setUserFeatureSearch] = useState('');
+  const [userFeatureFilterModul, setUserFeatureFilterModul] = useState('');
+  const [showUserFeatureModal, setShowUserFeatureModal] = useState(false);
+  const [editingUserFeature, setEditingUserFeature] = useState<UserFeatureAccessItem | null>(null);
+  const [selectedNrp, setSelectedNrp] = useState('');
+  const [userFeatureForm, setUserFeatureForm] = useState({
+    userId: '',
+    featureCode: 'WATER-LEVEL',
+    canRead: true,
+    canWrite: true,
+    canEdit: true,
+    canDelete: false,
+    canApprove: false,
+    canViewHistory: false,
+    scopeType: 'SELF',
+    reason: '',
+    expiresAt: '',
+  });
 
   // Draft state per modul: { [featureCode]: PolicyRecord }
   const [drafts, setDrafts] = useState<Record<string, PolicyRecord>>({});
@@ -98,18 +130,26 @@ export default function Authority() {
     setLoading(true);
     setError('');
     try {
-      const [roleData, featureData, statusData, userData] = await Promise.all([
+      const [roleData, featureData, statusData, userData, ufData] = await Promise.all([
         authorityAdminApi.roles(),
         authorityAdminApi.features(),
         authorityAdminApi.employmentStatuses(),
         authorityAdminApi.users(),
+        authorityAdminApi.userFeatures(),
       ]);
       setRoles(roleData);
       setFeatures(featureData);
       setStatuses(statusData);
       setUsers(userData);
+      setUserFeatures(ufData);
       if (roleData.length > 0 && !selectedRole) {
         setSelectedRole(roleData[0].level);
+      }
+      try {
+        const kRecords = await fetchMasterRecords('KARYAWAN');
+        if (kRecords) setKaryawanRecords(kRecords);
+      } catch {
+        // Abaikan jika master records gagal termuat
       }
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Gagal memuat data otoritas');
@@ -365,6 +405,110 @@ export default function Authority() {
     }
   }
 
+  function openCreateUserFeatureModal(defaultFeatureCode?: string) {
+    setEditingUserFeature(null);
+    setSelectedNrp('');
+    setUserFeatureForm({
+      userId: '',
+      featureCode: defaultFeatureCode || (features[0]?.code ?? 'WATER-LEVEL'),
+      canRead: true,
+      canWrite: true,
+      canEdit: true,
+      canDelete: false,
+      canApprove: false,
+      canViewHistory: false,
+      scopeType: 'SELF',
+      reason: '',
+      expiresAt: '',
+    });
+    setShowUserFeatureModal(true);
+  }
+
+  function openEditUserFeatureModal(item: UserFeatureAccessItem) {
+    setEditingUserFeature(item);
+    setSelectedNrp(item.user?.nrp || '');
+    setUserFeatureForm({
+      userId: String(item.userId),
+      featureCode: item.feature?.code || '',
+      canRead: Boolean(item.canRead),
+      canWrite: Boolean(item.canWrite),
+      canEdit: Boolean(item.canEdit),
+      canDelete: Boolean(item.canDelete),
+      canApprove: Boolean(item.canApprove),
+      canViewHistory: Boolean(item.canViewHistory),
+      scopeType: item.scopeType || 'SELF',
+      reason: item.reason || '',
+      expiresAt: item.expiresAt ? item.expiresAt.substring(0, 10) : '',
+    });
+    setShowUserFeatureModal(true);
+  }
+
+  async function saveUserFeature() {
+    if (!userFeatureForm.userId) {
+      setError('Pilih karyawan terlebih dahulu (pastikan karyawan memiliki akun user login)');
+      return;
+    }
+    if (!userFeatureForm.featureCode) {
+      setError('Pilih modul / fitur terlebih dahulu');
+      return;
+    }
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      if (editingUserFeature) {
+        await authorityAdminApi.updateUserFeature(editingUserFeature.id, {
+          ...userFeatureForm,
+          userId: Number(userFeatureForm.userId),
+        });
+        setMessage('Berhasil memperbarui hak akses khusus karyawan');
+      } else {
+        await authorityAdminApi.createUserFeature({
+          ...userFeatureForm,
+          userId: Number(userFeatureForm.userId),
+        });
+        setMessage('Berhasil menambahkan hak akses khusus karyawan');
+      }
+      setShowUserFeatureModal(false);
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal menyimpan hak akses karyawan');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  async function deleteUserFeature(id: number) {
+    if (!window.confirm('Apakah Anda yakin ingin mencabut hak akses khusus personil ini?')) return;
+    setSaving(true);
+    setError('');
+    setMessage('');
+    try {
+      await authorityAdminApi.deleteUserFeature(id);
+      setMessage('Hak akses khusus personil berhasil dicabut');
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : 'Gagal mencabut hak akses karyawan');
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  const filteredUserFeatures = useMemo(() => {
+    return userFeatures.filter((uf) => {
+      if (userFeatureFilterModul && uf.feature?.code !== userFeatureFilterModul) {
+        return false;
+      }
+      if (!userFeatureSearch.trim()) return true;
+      const q = userFeatureSearch.toLowerCase();
+      const nrp = (uf.user?.nrp || '').toLowerCase();
+      const name = (uf.user?.name || '').toLowerCase();
+      const reason = (uf.reason || '').toLowerCase();
+      const featName = (uf.feature?.name || '').toLowerCase();
+      return nrp.includes(q) || name.includes(q) || reason.includes(q) || featName.includes(q);
+    });
+  }, [userFeatures, userFeatureFilterModul, userFeatureSearch]);
+
   const activeRoleObj = roles.find((r) => r.level === selectedRole);
 
   return (
@@ -437,6 +581,14 @@ export default function Authority() {
                   onClick={() => setTab('matrix')}
                 >
                   <i className="bi bi-grid-3x3-gap-fill mr-1"></i> Tabel Matriks Hak Akses
+                </button>
+              </li>
+              <li className="nav-item">
+                <button
+                  className={`nav-link ${tab === 'user-features' ? 'active font-weight-bold text-primary' : ''}`}
+                  onClick={() => setTab('user-features')}
+                >
+                  <i className="bi bi-person-gear mr-1"></i> Akses Fitur Karyawan ({userFeatures.length})
                 </button>
               </li>
               <li className="nav-item">
@@ -642,6 +794,26 @@ export default function Authority() {
                                   <div className="font-weight-bold text-dark">{feat.name}</div>
                                   <div className="font-11 text-muted font-monospace">
                                     <code>{feat.code}</code> {feat.route && `• ${feat.route}`}
+                                  </div>
+                                  <div className="mt-1">
+                                    {(() => {
+                                      const count = userFeatures.filter((uf) => uf.feature?.code === feat.code).length;
+                                      return (
+                                        <button
+                                          type="button"
+                                          className={`btn btn-xs ${count > 0 ? 'btn-outline-primary font-weight-bold' : 'btn-outline-secondary text-muted'}`}
+                                          style={{ fontSize: '10px', padding: '1px 7px', borderRadius: '10px' }}
+                                          onClick={() => {
+                                            setUserFeatureFilterModul(feat.code);
+                                            setTab('user-features');
+                                          }}
+                                          title={`Kelola akses personil khusus untuk modul ${feat.name}`}
+                                        >
+                                          <i className="bi bi-people-fill mr-1"></i>
+                                          {count > 0 ? `${count} Petugas Khusus` : '+ Petugas Khusus'}
+                                        </button>
+                                      );
+                                    })()}
                                   </div>
                                 </div>
                               </div>
@@ -855,6 +1027,177 @@ export default function Authority() {
             </div>
           )}
 
+          {/* TAB: AKSES FITUR KARYAWAN (USER OVERRIDES) */}
+          {tab === 'user-features' && (
+            <div className="pd-20">
+              {/* Header & Controls */}
+              <div className="d-flex flex-column flex-md-row align-items-md-center justify-content-between gap-3 mb-20">
+                <div>
+                  <h5 className="font-16 text-dark font-weight-bold mb-1">
+                    <i className="bi bi-person-gear text-primary mr-2"></i>
+                    Daftar Akses Fitur Karyawan (Hak Khusus Personil)
+                  </h5>
+                  <p className="text-muted font-12 mb-0">
+                    Pengaturan hak akses khusus per individu (misal: crew tertentu yang berwenang mengupdate data Water Level).
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm shadow-sm"
+                  onClick={() => openCreateUserFeatureModal()}
+                >
+                  <i className="bi bi-plus-circle mr-1"></i> Tambah Akses Karyawan
+                </button>
+              </div>
+
+              {/* Filter Toolbar */}
+              <div className="row mb-15">
+                <div className="col-md-5 mb-2 mb-md-0">
+                  <div className="input-group input-group-sm">
+                    <div className="input-group-prepend">
+                      <span className="input-group-text bg-white border-right-0">
+                        <i className="bi bi-search text-muted"></i>
+                      </span>
+                    </div>
+                    <input
+                      type="text"
+                      className="form-control border-left-0"
+                      placeholder="Cari Nama Karyawan, NRP, atau Keterangan..."
+                      value={userFeatureSearch}
+                      onChange={(e) => setUserFeatureSearch(e.target.value)}
+                    />
+                    {userFeatureSearch && (
+                      <div className="input-group-append">
+                        <button className="btn btn-outline-secondary" onClick={() => setUserFeatureSearch('')}>
+                          &times;
+                        </button>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <div className="col-md-4 mb-2 mb-md-0">
+                  <select
+                    className="form-control form-control-sm font-12 bg-white"
+                    value={userFeatureFilterModul}
+                    onChange={(e) => setUserFeatureFilterModul(e.target.value)}
+                  >
+                    <option value="">-- Semua Modul / Fitur --</option>
+                    {features.map((f) => (
+                      <option key={f.code} value={f.code}>
+                        {f.name} ({f.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {/* Table */}
+              <div className="table-responsive border rounded bg-white shadow-sm">
+                <table className="table table-hover table-bordered mb-0 align-middle font-13">
+                  <thead className="thead-light">
+                    <tr className="text-center font-12 text-uppercase text-secondary">
+                      <th style={{ width: '45px' }} className="py-2">No</th>
+                      <th style={{ minWidth: '270px' }} className="text-left py-2">Karyawan (Card)</th>
+                      <th style={{ minWidth: '170px' }} className="text-left py-2">Modul / Fitur</th>
+                      <th style={{ minWidth: '210px' }} className="py-2">Izin Diberikan</th>
+                      <th style={{ minWidth: '110px' }} className="py-2">Scope</th>
+                      <th style={{ minWidth: '180px' }} className="text-left py-2">Alasan / Catatan Penugasan</th>
+                      <th style={{ minWidth: '120px' }} className="py-2">Masa Berlaku</th>
+                      <th style={{ width: '95px' }} className="py-2">Aksi</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {filteredUserFeatures.map((uf, idx) => {
+                      const empRecord = karyawanRecords.find(
+                        (k) => k.recordCode === uf.user?.nrp || k.values?.['NRP'] === uf.user?.nrp,
+                      );
+                      return (
+                        <tr key={uf.id}>
+                          <td className="text-center font-weight-bold text-muted">{idx + 1}</td>
+                          <td>
+                            <EmployeeFilterItem nrp={uf.user?.nrp || ''} data={empRecord} />
+                          </td>
+                          <td>
+                            <div className="d-flex align-items-center">
+                              <span
+                                className="avatar-sm d-flex align-items-center justify-content-center bg-light text-primary rounded mr-2"
+                                style={{ width: '28px', height: '28px', fontSize: '14px' }}
+                              >
+                                <i className={`bi ${uf.feature?.icon || 'bi-grid'}`}></i>
+                              </span>
+                              <div>
+                                <div className="font-weight-bold text-dark">{uf.feature?.name}</div>
+                                <div className="font-10 text-muted font-monospace">{uf.feature?.code}</div>
+                              </div>
+                            </div>
+                          </td>
+                          <td className="text-center">
+                            <div className="d-flex flex-wrap justify-content-center gap-1" style={{ gap: '4px' }}>
+                              {uf.canRead && <span className="badge badge-primary font-10">Read</span>}
+                              {uf.canWrite && <span className="badge badge-success font-10">Write</span>}
+                              {uf.canEdit && <span className="badge badge-warning text-dark font-10">Edit</span>}
+                              {uf.canDelete && <span className="badge badge-danger font-10">Delete</span>}
+                              {uf.canApprove && <span className="badge badge-info font-10">Approve</span>}
+                              {uf.canViewHistory && <span className="badge badge-secondary font-10">History</span>}
+                              {!uf.canRead && !uf.canWrite && !uf.canEdit && !uf.canDelete && !uf.canApprove && !uf.canViewHistory && (
+                                <span className="text-muted font-11">-</span>
+                              )}
+                            </div>
+                          </td>
+                          <td className="text-center">
+                            <span className="badge badge-light border px-2 py-1 font-11">
+                              {uf.scopeType || 'SELF'}
+                            </span>
+                          </td>
+                          <td>
+                            <span className="font-12 text-dark">{uf.reason || '-'}</span>
+                          </td>
+                          <td className="text-center">
+                            {uf.expiresAt ? (
+                              <span className="badge badge-warning font-11 px-2 py-1">
+                                s/d {formatDate(uf.expiresAt)}
+                              </span>
+                            ) : (
+                              <span className="badge badge-success font-11 px-2 py-1">Permanen</span>
+                            )}
+                          </td>
+                          <td className="text-center">
+                            <div className="btn-group btn-group-sm">
+                              <button
+                                type="button"
+                                className="btn btn-outline-primary btn-sm"
+                                onClick={() => openEditUserFeatureModal(uf)}
+                                title="Ubah wewenang khusus"
+                              >
+                                <i className="bi bi-pencil"></i>
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-outline-danger btn-sm"
+                                onClick={() => deleteUserFeature(uf.id)}
+                                title="Cabut wewenang khusus"
+                              >
+                                <i className="bi bi-trash"></i>
+                              </button>
+                            </div>
+                          </td>
+                        </tr>
+                      );
+                    })}
+                    {filteredUserFeatures.length === 0 && (
+                      <tr>
+                        <td colSpan={8} className="text-center text-muted py-4">
+                          Belum ada data akses khusus karyawan
+                          {userFeatureFilterModul ? ` untuk modul ${userFeatureFilterModul}` : ''}.
+                        </td>
+                      </tr>
+                    )}
+                  </tbody>
+                </table>
+              </div>
+            </div>
+          )}
+
           {/* TAB 2: ROLES MANAGEMENT */}
           {tab === 'roles' && (
             <div className="pd-20 table-responsive">
@@ -1004,6 +1347,237 @@ export default function Authority() {
               </div>
             </div>
           )}
+        </div>
+      )}
+
+      {/* Modal Tambah / Ubah Akses Fitur Karyawan */}
+      {showUserFeatureModal && (
+        <div
+          className="modal fade show d-block"
+          style={{ backgroundColor: 'rgba(15, 23, 42, 0.6)', zIndex: 1050 }}
+          tabIndex={-1}
+        >
+          <div className="modal-dialog modal-dialog-centered modal-lg">
+            <div className="modal-content shadow-lg border-0 rounded-lg">
+              <div className="modal-header bg-primary text-white">
+                <h5 className="modal-title font-16 text-white">
+                  <i className="bi bi-person-gear mr-2"></i>
+                  {editingUserFeature ? 'Ubah Akses Fitur Karyawan' : 'Tambah Akses Fitur Karyawan (Petugas Khusus)'}
+                </h5>
+                <button
+                  type="button"
+                  className="close text-white"
+                  onClick={() => setShowUserFeatureModal(false)}
+                >
+                  <span>&times;</span>
+                </button>
+              </div>
+              <div className="modal-body pd-20">
+                {/* Pemilih Karyawan dengan CARD VIEW & Autocomplete */}
+                <div className="form-group mb-3">
+                  <label className="font-13 font-weight-bold d-flex align-items-center justify-content-between">
+                    <span>Pilih Karyawan (Cari Nama / NRP):</span>
+                    {selectedNrp && (
+                      <span className="badge badge-success font-11">
+                        <i className="bi bi-check-circle mr-1"></i> Terpilih
+                      </span>
+                    )}
+                  </label>
+                  <EmployeeSelectInput
+                    value={selectedNrp}
+                    onChange={(nrp) => {
+                      setSelectedNrp(nrp);
+                      const matched = users.find((u) => u.nrp === nrp);
+                      if (matched) {
+                        setUserFeatureForm((f) => ({ ...f, userId: String(matched.id) }));
+                      } else {
+                        setUserFeatureForm((f) => ({ ...f, userId: '' }));
+                      }
+                    }}
+                    options={karyawanRecords}
+                    placeholder="Ketik Nama, NRP, atau Jabatan Karyawan..."
+                  />
+                  {selectedNrp && !userFeatureForm.userId && (
+                    <div className="alert alert-warning py-1 px-2 mt-2 font-12">
+                      <i className="bi bi-exclamation-triangle-fill mr-1"></i>
+                      Karyawan ini belum memiliki akun user login di tabel User. Pastikan akun user login terdaftar.
+                    </div>
+                  )}
+                </div>
+
+                {/* Pemilih Modul / Fitur */}
+                <div className="form-group mb-3">
+                  <label className="font-13 font-weight-bold">Modul / Fitur Aplikasi:</label>
+                  <select
+                    className="form-control font-13 bg-white"
+                    value={userFeatureForm.featureCode}
+                    onChange={(e) => setUserFeatureForm((f) => ({ ...f, featureCode: e.target.value }))}
+                  >
+                    {features.map((f) => (
+                      <option key={f.code} value={f.code}>
+                        {f.name} ({f.code})
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                {/* Checkboxes Hak Akses Tambahan */}
+                <div className="form-group mb-3">
+                  <label className="font-13 font-weight-bold d-block mb-2">
+                    Hak Akses Khusus yang Diberikan:
+                  </label>
+                  <div className="row">
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canRead"
+                          checked={userFeatureForm.canRead}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canRead: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canRead">
+                          <strong>Read</strong> (Melihat Data)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canWrite"
+                          checked={userFeatureForm.canWrite}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canWrite: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canWrite">
+                          <strong>Write</strong> (Input Data Baru)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canEdit"
+                          checked={userFeatureForm.canEdit}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canEdit: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canEdit">
+                          <strong>Edit</strong> (Ubah / Koreksi Data)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canDelete"
+                          checked={userFeatureForm.canDelete}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canDelete: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canDelete">
+                          <strong>Delete</strong> (Hapus Data)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canApprove"
+                          checked={userFeatureForm.canApprove}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canApprove: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canApprove">
+                          <strong>Approve</strong> (Setujui Data)
+                        </label>
+                      </div>
+                    </div>
+                    <div className="col-md-4 mb-2">
+                      <div className="custom-control custom-checkbox">
+                        <input
+                          type="checkbox"
+                          className="custom-control-input"
+                          id="uf-canViewHistory"
+                          checked={userFeatureForm.canViewHistory}
+                          onChange={(e) => setUserFeatureForm((f) => ({ ...f, canViewHistory: e.target.checked }))}
+                        />
+                        <label className="custom-control-label font-13" htmlFor="uf-canViewHistory">
+                          <strong>History</strong> (Lihat Riwayat)
+                        </label>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                <div className="row">
+                  {/* Scope */}
+                  <div className="col-md-6 form-group mb-3">
+                    <label className="font-13 font-weight-bold">Cakupan Data (Scope):</label>
+                    <select
+                      className="form-control font-13 bg-white"
+                      value={userFeatureForm.scopeType}
+                      onChange={(e) => setUserFeatureForm((f) => ({ ...f, scopeType: e.target.value }))}
+                    >
+                      {SCOPES.map((sc) => (
+                        <option key={sc} value={sc}>
+                          {sc}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Masa Berlaku */}
+                  <div className="col-md-6 form-group mb-3">
+                    <label className="font-13 font-weight-bold">
+                      Masa Berlaku (Kosongkan jika Permanen):
+                    </label>
+                    <input
+                      type="date"
+                      className="form-control font-13 bg-white"
+                      value={userFeatureForm.expiresAt}
+                      onChange={(e) => setUserFeatureForm((f) => ({ ...f, expiresAt: e.target.value }))}
+                    />
+                  </div>
+                </div>
+
+                {/* Alasan Penugasan */}
+                <div className="form-group mb-3">
+                  <label className="font-13 font-weight-bold">
+                    Alasan / Keterangan Penugasan:
+                  </label>
+                  <input
+                    type="text"
+                    className="form-control font-13 bg-white"
+                    placeholder="Contoh: Petugas ukur ketinggian air regu pagi pit utara"
+                    value={userFeatureForm.reason}
+                    onChange={(e) => setUserFeatureForm((f) => ({ ...f, reason: e.target.value }))}
+                  />
+                </div>
+              </div>
+              <div className="modal-footer bg-light">
+                <button
+                  type="button"
+                  className="btn btn-secondary btn-sm"
+                  onClick={() => setShowUserFeatureModal(false)}
+                >
+                  Batal
+                </button>
+                <button
+                  type="button"
+                  className="btn btn-primary btn-sm shadow-sm"
+                  disabled={saving || !userFeatureForm.userId}
+                  onClick={saveUserFeature}
+                >
+                  {saving ? 'Menyimpan...' : 'Simpan Hak Akses Karyawan'}
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       )}
 

@@ -438,6 +438,32 @@ export interface EmploymentStatusItem {
   position: { code: string; name: string } | null;
 }
 
+export interface UserFeatureAccessItem {
+  id: number;
+  userId: number;
+  featureId: number;
+  employmentStatusCode: string | null;
+  effect: string;
+  canRead: boolean | null;
+  canWrite: boolean | null;
+  canEdit: boolean | null;
+  canDelete: boolean | null;
+  canApprove: boolean | null;
+  canViewHistory: boolean | null;
+  scopeType: string | null;
+  reason: string;
+  expiresAt: string | null;
+  active: boolean;
+  user: {
+    id: number;
+    nrp: string;
+    name: string;
+    role: number;
+    active: boolean;
+  };
+  feature: FeatureDefinitionItem;
+}
+
 export const authorityAdminApi = {
   roles: () => api<RoleLevelItem[]>('/access/admin/roles'),
   features: () => api<FeatureDefinitionItem[]>('/access/admin/features'),
@@ -467,6 +493,24 @@ export const authorityAdminApi = {
     api<EmploymentStatusItem>('/access/admin/employment-statuses', {
       method: 'POST',
       body: JSON.stringify(body),
+    }),
+  userFeatures: (featureCode?: string) =>
+    api<UserFeatureAccessItem[]>(
+      '/access/admin/user-features' + (featureCode ? `?featureCode=${encodeURIComponent(featureCode)}` : ''),
+    ),
+  createUserFeature: (body: Record<string, unknown>) =>
+    api<UserFeatureAccessItem>('/access/admin/user-features', {
+      method: 'POST',
+      body: JSON.stringify(body),
+    }),
+  updateUserFeature: (id: number, body: Record<string, unknown>) =>
+    api<UserFeatureAccessItem>(`/access/admin/user-features/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(body),
+    }),
+  deleteUserFeature: (id: number) =>
+    api<{ success: boolean; message: string }>(`/access/admin/user-features/${id}`, {
+      method: 'DELETE',
     }),
 };
 
