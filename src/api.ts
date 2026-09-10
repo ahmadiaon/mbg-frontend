@@ -651,4 +651,83 @@ export const waterLevelApi = {
     }),
 };
 
+export interface OrgNodeItem {
+  id: number;
+  code: string;
+  title: string;
+  department: string | null;
+  division: string | null;
+  company: string | null;
+  grade: number;
+  gradeName: string;
+  parentId: number | null;
+  parentTitle: string | null;
+  employeeNrp: string | null;
+  employeeName: string | null;
+  sortOrder: number;
+  active: boolean;
+  children?: OrgNodeItem[];
+}
+
+export interface OrgTreeResponse {
+  roots: OrgNodeItem[];
+  totalPositions: number;
+  flatList: OrgNodeItem[];
+}
+
+export interface OrgGradeItem {
+  id: number;
+  level: number;
+  code: string;
+  name: string;
+  description: string | null;
+}
+
+export interface OrgEmployeeLookupItem {
+  nrp: string;
+  name: string;
+  currentRole: number;
+}
+
+export const organizationApi = {
+  tree: (params?: { company?: string; department?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.company && params.company !== 'ALL') q.set('company', params.company);
+    if (params?.department && params.department !== 'ALL') q.set('department', params.department);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return api<OrgTreeResponse>(`/organization/tree${qs ? `?${qs}` : ''}`);
+  },
+  positions: (params?: { company?: string; department?: string; search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.company && params.company !== 'ALL') q.set('company', params.company);
+    if (params?.department && params.department !== 'ALL') q.set('department', params.department);
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return api<OrgNodeItem[]>(`/organization/positions${qs ? `?${qs}` : ''}`);
+  },
+  grades: () => api<OrgGradeItem[]>('/organization/grades'),
+  employeesLookup: () => api<OrgEmployeeLookupItem[]>('/organization/employees-lookup'),
+  createNode: (data: Partial<OrgNodeItem> & { syncUserRole?: boolean }) =>
+    api<OrgNodeItem>('/organization/node', {
+      method: 'POST',
+      body: JSON.stringify(data),
+    }),
+  updateNode: (id: number, data: Partial<OrgNodeItem> & { syncUserRole?: boolean }) =>
+    api<OrgNodeItem>(`/organization/node/${id}`, {
+      method: 'PUT',
+      body: JSON.stringify(data),
+    }),
+  deleteNode: (id: number) =>
+    api<{ success: boolean }>(`/organization/node/${id}`, {
+      method: 'DELETE',
+    }),
+  assignEmployee: (id: number, employeeNrp: string | null, syncUserRole = true) =>
+    api<OrgNodeItem>(`/organization/node/${id}/assign`, {
+      method: 'POST',
+      body: JSON.stringify({ employeeNrp, syncUserRole }),
+    }),
+};
+
+
 

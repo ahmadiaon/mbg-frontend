@@ -30,7 +30,7 @@ export const MENU: MenuItem[] = [
   { label: 'Slip Gaji', icon: 'bi bi-journal-bookmark', featureCode: 'PAYROLL', path: '/payroll/slip' },
 
   { label: 'Fitur', cap: true },
-  { label: 'Struktur Organisasi', icon: 'bi bi-diagram-3', path: '/struktur-organisasi', implemented: false },
+  { label: 'Struktur Organisasi', icon: 'bi bi-diagram-3', path: '/struktur-organisasi', implemented: true },
   { label: 'Water Level', icon: 'bi bi-droplet', featureCode: 'WATER-LEVEL', path: '/feature/water-level', implemented: true },
   { label: 'MBG-Link', icon: 'bi bi-link-45deg', path: '/mbg-link' },
   { label: 'Recruitment', icon: 'bi bi-box-seam', featureCode: 'RECRUITMENT', path: '/manage/recruitment', implemented: false },
