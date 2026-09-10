@@ -21,7 +21,19 @@ function resolvePhotoUrl(
   if (filename.startsWith('/assets/')) {
     return filename;
   }
-  return `${ASSETS_BASE}/uploads/${folder}/${encodeURIComponent(filename)}`;
+  return `/assets/${folder}/${encodeURIComponent(filename)}`;
+}
+
+function handleImageError(
+  e: React.SyntheticEvent<HTMLImageElement, Event>,
+  folder: 'water_level/panorama' | 'water_level/draft_meter',
+  filename: string | null,
+) {
+  const target = e.currentTarget;
+  if (!target.dataset.triedFallback && filename) {
+    target.dataset.triedFallback = 'true';
+    target.src = `${ASSETS_BASE}/uploads/${folder}/${encodeURIComponent(filename)}`;
+  }
 }
 
 function formatDate(dateStr: string): string {
@@ -835,6 +847,7 @@ export default function WaterLevel() {
                                 title: `Panorama ${row.lokasi} - ${formatDate(row.tanggal)}`,
                               })
                             }
+                            onError={(e) => handleImageError(e, 'water_level/panorama', row.foto_panorama)}
                             title="Klik untuk memperbesar foto"
                           />
                         ) : (
@@ -854,6 +867,7 @@ export default function WaterLevel() {
                                 title: `Draft Meter ${row.lokasi} - ${formatDate(row.tanggal)}`,
                               })
                             }
+                            onError={(e) => handleImageError(e, 'water_level/draft_meter', row.foto_draft_meter)}
                             title="Klik untuk memperbesar foto"
                           />
                         ) : (
@@ -1125,6 +1139,16 @@ export default function WaterLevel() {
                   alt={photoModal.title}
                   className="img-fluid rounded"
                   style={{ maxHeight: '78vh', objectFit: 'contain' }}
+                  onError={(e) => {
+                    const target = e.currentTarget;
+                    if (!target.dataset.triedFallback && target.src.includes('/assets/water_level/')) {
+                      target.dataset.triedFallback = 'true';
+                      const parts = target.src.split('/assets/');
+                      if (parts[1]) {
+                        target.src = `${ASSETS_BASE}/uploads/${parts[1]}`;
+                      }
+                    }
+                  }}
                 />
               </div>
             </div>
@@ -1315,7 +1339,9 @@ export default function WaterLevel() {
                             <img
                               src={resolvePhotoUrl('water_level/panorama', shareData.latest.foto_panorama) || ''}
                               alt="Panorama"
+                              crossOrigin="anonymous"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => handleImageError(e, 'water_level/panorama', shareData.latest?.foto_panorama || null)}
                             />
                           ) : (
                             <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
@@ -1411,7 +1437,9 @@ export default function WaterLevel() {
                             <img
                               src={resolvePhotoUrl('water_level/draft_meter', shareData.latest.foto_draft_meter) || ''}
                               alt="Draft Meter"
+                              crossOrigin="anonymous"
                               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                              onError={(e) => handleImageError(e, 'water_level/draft_meter', shareData.latest?.foto_draft_meter || null)}
                             />
                           ) : (
                             <div className="d-flex flex-column align-items-center justify-content-center h-100 text-muted">
@@ -1673,6 +1701,7 @@ function LocationCardItem({
               src={photoUrl}
               alt={`${label} ${title}`}
               style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+              onError={(e) => handleImageError(e, photoFolder, photoField || null)}
             />
             <div
               style={{
