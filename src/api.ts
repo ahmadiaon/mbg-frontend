@@ -638,8 +638,10 @@ export const waterLevelApi = {
     api<{ success: boolean; data: WaterLevelItem[] }>(
       `/feature/water-level/data${lokasi && lokasi !== 'ALL' ? `?lokasi=${encodeURIComponent(lokasi)}` : ''}`
     ),
-  summary: () =>
-    api<{ success: boolean; data: WaterLevelSummary }>('/feature/water-level/summary'),
+  summary: (lokasi?: string) =>
+    api<{ success: boolean; data: WaterLevelSummary }>(
+      `/feature/water-level/summary${lokasi && lokasi !== 'ALL' ? `?lokasi=${encodeURIComponent(lokasi)}` : ''}`,
+    ),
   store: (fd: FormData) =>
     postFormData<{ success: boolean; message: string; data: WaterLevelItem }>('/feature/water-level', fd),
   delete: (id: number) =>
