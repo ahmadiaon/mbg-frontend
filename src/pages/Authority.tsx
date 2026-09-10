@@ -6,7 +6,7 @@ import {
   type RoleLevelItem,
 } from '../api';
 
-const MAIN_ACTIONS = [
+const STANDARD_ACTIONS = [
   { key: 'canRead', label: 'Read', icon: 'bi-eye', color: 'text-primary' },
   { key: 'canWrite', label: 'Write', icon: 'bi-pencil-square', color: 'text-success' },
   { key: 'canEdit', label: 'Edit', icon: 'bi-pencil', color: 'text-warning' },
@@ -15,6 +15,12 @@ const MAIN_ACTIONS = [
   { key: 'canExport', label: 'Export', icon: 'bi-download', color: 'text-secondary' },
   { key: 'canApprove', label: 'Approve', icon: 'bi-check2-circle', color: 'text-success' },
   { key: 'canViewHistory', label: 'History', icon: 'bi-clock-history', color: 'text-dark' },
+] as const;
+
+const ADVANCED_ACTIONS = [
+  { key: 'canSubmit', label: 'Submit', icon: 'bi-send', color: 'text-primary' },
+  { key: 'canReject', label: 'Reject', icon: 'bi-x-circle', color: 'text-danger' },
+  { key: 'canRestore', label: 'Restore', icon: 'bi-arrow-counterclockwise', color: 'text-secondary' },
 ] as const;
 
 const SCOPES = [
@@ -71,6 +77,7 @@ export default function Authority() {
   const [users, setUsers] = useState<{ id: number; nrp: string; name: string }[]>([]);
   const [selectedRole, setSelectedRole] = useState(1);
   const [viewMode, setViewMode] = useState<'matrix' | 'global'>('matrix');
+  const [showAdvancedActions, setShowAdvancedActions] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [tab, setTab] = useState<'matrix' | 'roles' | 'status'>('matrix');
   const [loading, setLoading] = useState(true);
@@ -143,6 +150,10 @@ export default function Authority() {
     setHasChanges(false);
   }, [selectedRole, features]);
 
+  const displayedActions = useMemo(() => {
+    return showAdvancedActions ? [...STANDARD_ACTIONS, ...ADVANCED_ACTIONS] : STANDARD_ACTIONS;
+  }, [showAdvancedActions]);
+
   const filteredFeatures = useMemo(() => {
     const q = searchQuery.trim().toLowerCase();
     if (!q) return features;
@@ -174,7 +185,7 @@ export default function Authority() {
   }
 
   // Preset Cepat per baris
-  function applyRowPreset(featureCode: string, type: 'full' | 'read' | 'none') {
+  function applyRowPreset(featureCode: string, type: 'full' | 'read' | 'approval' | 'none') {
     setDrafts((prev) => {
       const current = prev[featureCode] || defaultPolicy();
       let updated: PolicyRecord;
@@ -209,12 +220,58 @@ export default function Authority() {
           canViewHistory: true,
           canRestore: false,
         };
+      } else if (type === 'approval') {
+        updated = {
+          ...current,
+          canRead: true,
+          canWrite: false,
+          canEdit: false,
+          canDelete: false,
+          canImport: false,
+          canExport: false,
+          canSubmit: true,
+          canApprove: true,
+          canReject: true,
+          canViewHistory: true,
+          canRestore: false,
+        };
       } else {
         updated = defaultPolicy();
       }
       return { ...prev, [featureCode]: updated };
     });
     setHasChanges(true);
+  }
+
+  // Salin wewenang dari role lain
+  function copyFromRole(sourceLevel: number) {
+    setDrafts((prev) => {
+      const next: Record<string, PolicyRecord> = { ...prev };
+      for (const f of features) {
+        const p = f.policies?.find((item) => item.roleLevel?.level === sourceLevel);
+        if (p) {
+          next[f.code] = {
+            canRead: Boolean(p.canRead),
+            canWrite: Boolean(p.canWrite),
+            canEdit: Boolean(p.canEdit),
+            canDelete: Boolean(p.canDelete),
+            canImport: Boolean(p.canImport),
+            canExport: Boolean(p.canExport),
+            canSubmit: Boolean(p.canSubmit),
+            canApprove: Boolean(p.canApprove),
+            canReject: Boolean(p.canReject),
+            canViewHistory: Boolean(p.canViewHistory),
+            canRestore: Boolean(p.canRestore),
+            scopeType: p.scopeType || 'SELF',
+          };
+        } else {
+          next[f.code] = defaultPolicy();
+        }
+      }
+      return next;
+    });
+    setHasChanges(true);
+    setMessage(`Hak akses berhasil disalin dari Role Level ${sourceLevel}. Klik 'Simpan Semua' untuk menyimpan ke database.`);
   }
 
   // Toggle kolom penuh sekaligus
@@ -465,7 +522,45 @@ export default function Authority() {
                   </div>
                 </div>
 
-                <div className="col-md-7 text-md-right d-flex align-items-center justify-content-md-end gap-2" style={{ gap: '8px' }}>
+                <div className="col-md-7 text-md-right d-flex flex-wrap align-items-center justify-content-md-end gap-2" style={{ gap: '8px' }}>
+                  {/* Salin dari Role Lain */}
+                  <div className="d-flex align-items-center mr-1">
+                    <span className="text-secondary font-12 mr-1">
+                      <i className="bi bi-copy mr-1"></i>Salin:
+                    </span>
+                    <select
+                      className="form-control form-control-sm font-12 bg-white"
+                      style={{ width: '135px' }}
+                      defaultValue=""
+                      onChange={(e) => {
+                        const lvl = Number(e.target.value);
+                        if (lvl) {
+                          copyFromRole(lvl);
+                          e.target.value = '';
+                        }
+                      }}
+                    >
+                      <option value="" disabled>Dari Role...</option>
+                      {roles.filter((r) => r.level !== selectedRole).map((r) => (
+                        <option key={r.level} value={r.level}>
+                          Lvl {r.level} - {r.name.length > 12 ? r.name.substring(0, 12) + '...' : r.name}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Toggle Aksi Lengkap */}
+                  <button
+                    type="button"
+                    className={`btn btn-sm ${showAdvancedActions ? 'btn-info font-weight-bold text-white' : 'btn-outline-secondary'}`}
+                    onClick={() => setShowAdvancedActions(!showAdvancedActions)}
+                    title="Tampilkan aksi tambahan (Submit, Reject, Restore)"
+                  >
+                    <i className={`bi ${showAdvancedActions ? 'bi-dash-circle' : 'bi-plus-circle'} mr-1`}></i>
+                    {showAdvancedActions ? 'Aksi Standar (8)' : 'Aksi Lengkap (11)'}
+                  </button>
+
+                  {/* View Mode Switcher */}
                   <div className="btn-group btn-group-sm">
                     <button
                       type="button"
@@ -509,7 +604,7 @@ export default function Authority() {
                         <th style={{ minWidth: '220px' }} className="text-left py-2">
                           Modul / Fitur Aplikasi
                         </th>
-                        {MAIN_ACTIONS.map((act) => (
+                        {displayedActions.map((act) => (
                           <th
                             key={act.key}
                             style={{ minWidth: '70px', cursor: 'pointer' }}
@@ -526,7 +621,7 @@ export default function Authority() {
                           </th>
                         ))}
                         <th style={{ minWidth: '150px' }} className="text-left py-2">Cakupan Scope</th>
-                        <th style={{ minWidth: '160px' }} className="py-2">Preset Cepat</th>
+                        <th style={{ minWidth: '185px' }} className="py-2">Preset Cepat</th>
                       </tr>
                     </thead>
                     <tbody>
@@ -553,11 +648,25 @@ export default function Authority() {
                             </td>
 
                             {/* Action Checkboxes */}
-                            {MAIN_ACTIONS.map((act) => {
+                            {displayedActions.map((act) => {
                               const checked = Boolean(pol[act.key]);
                               return (
-                                <td key={act.key} className="text-center p-1">
-                                  <div className="custom-control custom-checkbox d-inline-block">
+                                <td
+                                  key={act.key}
+                                  className="text-center p-1"
+                                  style={{
+                                    cursor: 'pointer',
+                                    backgroundColor: checked ? '#ecfdf5' : undefined,
+                                    transition: 'background-color 0.15s ease',
+                                    userSelect: 'none',
+                                  }}
+                                  onClick={() => handleToggleAction(feat.code, act.key)}
+                                  title={`Klik untuk ubah ${act.label} (${checked ? 'Aktif' : 'Nonaktif'})`}
+                                >
+                                  <div
+                                    className="custom-control custom-checkbox d-inline-block"
+                                    onClick={(e) => e.stopPropagation()}
+                                  >
                                     <input
                                       type="checkbox"
                                       className="custom-control-input"
@@ -613,6 +722,15 @@ export default function Authority() {
                                 </button>
                                 <button
                                   type="button"
+                                  className="btn btn-outline-info btn-xs"
+                                  onClick={() => applyRowPreset(feat.code, 'approval')}
+                                  title="Akses Approval (Baca, Ajukan, Setujui, Tolak)"
+                                  style={{ fontSize: '11px', padding: '2px 6px' }}
+                                >
+                                  Appr
+                                </button>
+                                <button
+                                  type="button"
                                   className="btn btn-outline-danger btn-xs"
                                   onClick={() => applyRowPreset(feat.code, 'none')}
                                   title="Tutup Akses Sama Sekali"
@@ -627,7 +745,7 @@ export default function Authority() {
                       })}
                       {filteredFeatures.length === 0 && (
                         <tr>
-                          <td colSpan={MAIN_ACTIONS.length + 3} className="text-center text-muted py-4">
+                          <td colSpan={displayedActions.length + 3} className="text-center text-muted py-4">
                             Tidak ada modul yang cocok dengan pencarian <strong>"{searchQuery}"</strong>.
                           </td>
                         </tr>
