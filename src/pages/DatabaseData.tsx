@@ -14,6 +14,7 @@ import { useEav } from '../context/EavContext';
 import DataTable from '../components/DataTable';
 import { renderFieldValue, isEmployeeField } from '../eavRender';
 import EmployeeCard from '../components/EmployeeCard';
+import PhotoProfileCropperModal from '../components/PhotoProfileCropperModal';
 
 type FlatRow = { __recordCode: string; __recordUuid: string } & Record<string, string>;
 
@@ -47,6 +48,9 @@ export default function DatabaseData() {
   const [approvalLoading, setApprovalLoading] = useState(false);
   const [approvalActionBusy, setApprovalActionBusy] = useState<number | null>(null);
   const [recordsLoading, setRecordsLoading] = useState(false);
+  const [cropperOpen, setCropperOpen] = useState(false);
+  const [cropTargetField, setCropTargetField] = useState<string | null>(null);
+  const [cropSourceImage, setCropSourceImage] = useState<string | null>(null);
   const importRef = useRef<HTMLInputElement>(null);
 
   const tableList = useMemo(() => Object.values(entities), [entities]);
@@ -324,6 +328,101 @@ export default function DatabaseData() {
     const type = f.type.toUpperCase();
 
     if (type === 'HIDDEN') return null;
+
+    const isPhotoProfile =
+      type === 'FOTO-PROFIL' ||
+      type === 'FOTO PROFIL' ||
+      f.name.toUpperCase().includes('FOTO PROFIL') ||
+      f.code.toUpperCase().includes('FOTO-PROFIL');
+
+    if (isPhotoProfile) {
+      return (
+        <div className="p-3 border rounded bg-light">
+          <div className="d-flex align-items-center">
+            {/* Box Preview 3:4 */}
+            <div
+              className="mr-3 border rounded overflow-hidden shadow-sm d-flex align-items-center justify-content-center bg-white flex-shrink-0"
+              style={{
+                width: '75px',
+                height: '100px', // rasio 3:4
+                position: 'relative',
+              }}
+            >
+              {val ? (
+                <img
+                  src={val}
+                  alt={f.name}
+                  style={{ width: '100%', height: '100%', objectFit: 'cover' }}
+                />
+              ) : (
+                <div className="text-center text-muted">
+                  <i className="bi bi-person-bounding-box font-24"></i>
+                  <div className="font-10 weight-600">3 : 4</div>
+                </div>
+              )}
+            </div>
+
+            <div className="flex-grow-1">
+              <div className="font-13 weight-600 text-dark mb-1">
+                {f.name} (Rasio 3 x 4)
+              </div>
+              <div className="font-11 text-muted mb-2">
+                Pasfoto formal rasio 3x4 dengan bantuan deteksi wajah otomatis & bebas digeser.
+              </div>
+
+              <div className="d-flex flex-wrap align-items-center">
+                <label className="btn btn-sm btn-outline-primary mb-0 mr-2 cursor-pointer">
+                  <i className="bi bi-camera mr-1"></i> {val ? 'Ganti Foto' : 'Pilih Foto'}
+                  <input
+                    type="file"
+                    accept="image/*"
+                    style={{ display: 'none' }}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        const reader = new FileReader();
+                        reader.onload = () => {
+                          setCropSourceImage(reader.result as string);
+                          setCropTargetField(f.code);
+                          setCropperOpen(true);
+                        };
+                        reader.readAsDataURL(file);
+                      }
+                      e.target.value = '';
+                    }}
+                  />
+                </label>
+
+                {val && (
+                  <>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-secondary mr-2"
+                      onClick={() => {
+                        setCropSourceImage(val);
+                        setCropTargetField(f.code);
+                        setCropperOpen(true);
+                      }}
+                      title="Sesuaikan ulang crop 3x4"
+                    >
+                      <i className="bi bi-crop mr-1"></i> Sesuaikan
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-sm btn-outline-danger"
+                      onClick={() => setValue(f.code, '')}
+                      title="Hapus foto"
+                    >
+                      <i className="bi bi-trash"></i>
+                    </button>
+                  </>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      );
+    }
 
     if (type === 'GABUNGAN') {
       return (
@@ -811,6 +910,22 @@ export default function DatabaseData() {
           </div>
         </div>
       )}
+
+      {/* ===== Modal Cropper Foto Profil 3x4 ===== */}
+      <PhotoProfileCropperModal
+        isOpen={cropperOpen}
+        imageSrc={cropSourceImage}
+        onClose={() => {
+          setCropperOpen(false);
+          setCropSourceImage(null);
+          setCropTargetField(null);
+        }}
+        onApplyCrop={(croppedDataUrl) => {
+          if (cropTargetField) {
+            setValue(cropTargetField, croppedDataUrl);
+          }
+        }}
+      />
     </div>
   );
 }

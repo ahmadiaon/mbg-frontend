@@ -155,6 +155,25 @@ export function renderFieldValue(
         </span>
       );
     }
+    case 'FOTO-PROFIL':
+    case 'GAMBAR': {
+      const v = value || '';
+      if (!v) return <span className="text-muted font-12">-</span>;
+      return (
+        <div className="d-inline-flex align-items-center py-1">
+          <img
+            src={v}
+            alt={field.name}
+            className="rounded border shadow-sm"
+            style={{
+              width: '33px',
+              height: '44px',
+              objectFit: 'cover',
+            }}
+          />
+        </div>
+      );
+    }
     case 'NRP':
     default:
       return value ?? '';

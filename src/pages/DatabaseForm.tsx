@@ -47,6 +47,7 @@ const FIELD_TYPES = [
   'NRP',
   'REFERENCE',
   'COLOR',
+  'FOTO-PROFIL',
   'HIDDEN',
 ];
 
@@ -57,6 +58,7 @@ const FIELD_TYPE_LABELS: Record<string, string> = {
   DATETIME: 'Tanggal & Jam',
   FILE: 'File',
   'FILE-PDF': 'File PDF',
+  'FOTO-PROFIL': 'Foto Profil (3x4)',
   GABUNGAN: 'Gabungan',
   'INPUT-AUTOCOMPLITE': 'Input Autocomplete',
   'NOMINAL-UANG': 'Nominal Uang',
@@ -132,20 +134,44 @@ export default function DatabaseForm() {
 
   const load = useCallback(() => {
     void fetchSchema();
-    // Preload master data persetujuan (sifat DARI-TABEL) dari cache EavContext
+    // Preload master data persetujuan & tipe data dari cache EavContext
     void Promise.all([
       fetchMasterRecords('DESKRIPSI-PERSETUJUAN'),
       fetchMasterRecords('DATABASE-LEVEL-PERSETUJUAN'),
       fetchMasterRecords('DATABASE-GROUP-PERSETUJUAN'),
-    ]).then(([deskripsi, levels, groups]) => {
+      fetchMasterRecords('TYPE-DATA', true),
+    ]).then(([deskripsi, levels, groups, typeData]) => {
       setSourceOptions((prev) => ({
         ...prev,
         'DESKRIPSI-PERSETUJUAN': deskripsi,
         'DATABASE-LEVEL-PERSETUJUAN': levels,
         'DATABASE-GROUP-PERSETUJUAN': groups,
+        'TYPE-DATA': typeData,
       }));
     });
   }, [fetchSchema, fetchMasterRecords]);
+
+  // Daftar tipe data dinamis dari tabel TYPE-DATA di database (termasuk FOTO-PROFIL)
+  const dynamicFieldTypes = useMemo(() => {
+    const typeRecords = sourceOptions['TYPE-DATA'] ?? [];
+    const typeMap = new Map<string, string>();
+
+    // 1. Ambil dari database tabel TYPE-DATA
+    for (const r of typeRecords) {
+      const code = r.recordCode.toUpperCase();
+      const label = r.values['TYPE-DATA'] || r.recordCode;
+      typeMap.set(code, label);
+    }
+
+    // 2. Gabungkan dengan default standar
+    for (const t of FIELD_TYPES) {
+      if (!typeMap.has(t)) {
+        typeMap.set(t, FIELD_TYPE_LABELS[t] ?? t);
+      }
+    }
+
+    return Array.from(typeMap.entries()).map(([code, label]) => ({ code, label }));
+  }, [sourceOptions]);
 
   useEffect(() => {
     load();
@@ -386,6 +412,18 @@ export default function DatabaseForm() {
       control = <input type="file" className="form-control" disabled />;
     } else if (f.type === 'COLOR') {
       control = <input type="color" className="form-control" disabled />;
+    } else if (f.type === 'FOTO-PROFIL') {
+      control = (
+        <div className="p-2 border rounded bg-light d-flex align-items-center">
+          <div
+            className="mr-2 border rounded d-flex align-items-center justify-content-center bg-white text-muted font-11"
+            style={{ width: '36px', height: '48px' }}
+          >
+            3:4
+          </div>
+          <span className="font-12 text-muted">Upload Pasfoto 3x4</span>
+        </div>
+      );
     } else {
       control = <input type="text" className="form-control" disabled placeholder={label} />;
     }
@@ -876,9 +914,9 @@ export default function DatabaseForm() {
                         value={f.type}
                         onChange={(e) => patchField(i, { type: e.target.value })}
                       >
-                        {FIELD_TYPES.map((t) => (
-                          <option key={t} value={t}>
-                            {FIELD_TYPE_LABELS[t] ?? t}
+                        {dynamicFieldTypes.map((t) => (
+                          <option key={t.code} value={t.code}>
+                            {t.label}
                           </option>
                         ))}
                       </select>
