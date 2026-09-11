@@ -15,95 +15,138 @@ interface GradeStyle {
 }
 
 const GRADE_STYLES: Record<number, GradeStyle> = {
-  15: {
+  // G19 â€” Founder / Owner
+  19: {
+    accentColor: '#1a0533',
+    badgeClass: 'badge badge-pill',
+    badgeStyle: { backgroundColor: '#1a0533', color: '#ffd700' },
+    label: 'G19 Â· Founder / Owner',
+  },
+  // G18 â€” Komisaris
+  18: {
+    accentColor: '#3b0764',
+    badgeClass: 'badge badge-pill',
+    badgeStyle: { backgroundColor: '#3b0764', color: '#ffffff' },
+    label: 'G18 Â· Komisaris',
+  },
+  // G17 â€” Direktur Utama
+  17: {
     accentColor: '#582c87',
     badgeClass: 'badge badge-pill',
     badgeStyle: { backgroundColor: '#582c87', color: '#ffffff' },
-    label: 'Super User Utama',
+    label: 'G17 Â· Direktur Utama',
   },
-  14: {
+  // G16 â€” Direktur Operasional
+  16: {
     accentColor: '#6f42c1',
     badgeClass: 'badge badge-pill',
     badgeStyle: { backgroundColor: '#6f42c1', color: '#ffffff' },
-    label: 'Super User',
+    label: 'G16 Â· Direktur Operasional',
   },
-  13: {
-    accentColor: '#7952b3',
+  // G15 â€” General Manager
+  15: {
+    accentColor: '#4f46e5',
     badgeClass: 'badge badge-pill',
-    badgeStyle: { backgroundColor: '#7952b3', color: '#ffffff' },
-    label: 'Owner / Direksi',
+    badgeStyle: { backgroundColor: '#4f46e5', color: '#ffffff' },
+    label: 'G15 Â· General Manager',
   },
-  12: {
+  // G14 â€” Manager
+  14: {
     accentColor: '#1b00ff',
     badgeClass: 'badge badge-pill badge-primary',
     badgeStyle: { backgroundColor: '#1b00ff', color: '#ffffff' },
-    label: 'Kepala / GM',
+    label: 'G14 Â· Manager',
   },
-  11: {
+  // G13 â€” Kepala Divisi
+  13: {
     accentColor: '#2563eb',
     badgeClass: 'badge badge-pill badge-primary',
     badgeStyle: { backgroundColor: '#2563eb', color: '#ffffff' },
-    label: 'Staf HO',
+    label: 'G13 Â· Kepala Divisi',
   },
-  10: {
+  // G12 â€” Staff Manager
+  12: {
     accentColor: '#3b82f6',
     badgeClass: 'badge badge-pill badge-primary',
     badgeStyle: { backgroundColor: '#3b82f6', color: '#ffffff' },
-    label: 'Kepala Perusahaan',
+    label: 'G12 Â· Staff Manager',
   },
-  9: {
+  // G11 â€” Kepala / Direktur Perusahaan
+  11: {
     accentColor: '#0284c7',
     badgeClass: 'badge badge-pill badge-info',
     badgeStyle: { backgroundColor: '#0284c7', color: '#ffffff' },
-    label: 'Admin Perusahaan',
+    label: 'G11 Â· Kepala Perusahaan',
   },
-  8: {
+  // G10 â€” Staff Perusahaan
+  10: {
     accentColor: '#0891b2',
     badgeClass: 'badge badge-pill badge-info',
     badgeStyle: { backgroundColor: '#0891b2', color: '#ffffff' },
-    label: 'Kepala Project',
+    label: 'G10 Â· Staff Perusahaan',
   },
-  7: {
+  // G09 â€” KTT / PJO
+  9: {
     accentColor: '#0d9488',
     badgeClass: 'badge badge-pill badge-info',
     badgeStyle: { backgroundColor: '#0d9488', color: '#ffffff' },
-    label: 'Admin Project',
+    label: 'G09 Â· KTT / PJO',
   },
-  6: {
-    accentColor: '#0284c7',
-    badgeClass: 'badge badge-pill badge-info',
-    badgeStyle: { backgroundColor: '#0284c7', color: '#ffffff' },
-    label: 'Kepala Departemen',
+  // G08 â€” Staff PJO / KTT
+  8: {
+    accentColor: '#059669',
+    badgeClass: 'badge badge-pill badge-success',
+    badgeStyle: { backgroundColor: '#059669', color: '#ffffff' },
+    label: 'G08 Â· Staff PJO / KTT',
   },
-  5: {
+  // G07 â€” Kepala Departemen
+  7: {
     accentColor: '#d97706',
     badgeClass: 'badge badge-pill badge-warning',
     badgeStyle: { backgroundColor: '#d97706', color: '#ffffff' },
-    label: 'Admin Departemen',
+    label: 'G07 Â· Kepala Departemen',
   },
-  4: {
+  // G06 â€” Superintendent
+  6: {
     accentColor: '#f59e0b',
     badgeClass: 'badge badge-pill badge-warning text-dark',
     badgeStyle: { backgroundColor: '#f59e0b', color: '#212529' },
-    label: 'Koordinator Divisi',
+    label: 'G06 Â· Superintendent',
   },
-  3: {
+  // G05 â€” Staff Departemen
+  5: {
     accentColor: '#eab308',
     badgeClass: 'badge badge-pill badge-warning text-dark',
     badgeStyle: { backgroundColor: '#eab308', color: '#212529' },
-    label: 'Admin Divisi',
+    label: 'G05 Â· Staff Departemen',
   },
+  // G04 â€” Supervisor / Koordinator
+  4: {
+    accentColor: '#ca8a04',
+    badgeClass: 'badge badge-pill badge-warning text-dark',
+    badgeStyle: { backgroundColor: '#ca8a04', color: '#212529' },
+    label: 'G04 Â· Supervisor / Koordinator',
+  },
+  // G03 â€” Section
+  3: {
+    accentColor: '#65a30d',
+    badgeClass: 'badge badge-pill badge-success',
+    badgeStyle: { backgroundColor: '#65a30d', color: '#ffffff' },
+    label: 'G03 Â· Section',
+  },
+  // G02 â€” Group Leader
   2: {
     accentColor: '#10b981',
     badgeClass: 'badge badge-pill badge-success',
     badgeStyle: { backgroundColor: '#10b981', color: '#ffffff' },
-    label: 'Group Leader',
+    label: 'G02 Â· Group Leader',
   },
+  // G01 â€” Karyawan
   1: {
     accentColor: '#64748b',
     badgeClass: 'badge badge-pill badge-secondary',
     badgeStyle: { backgroundColor: '#64748b', color: '#ffffff' },
-    label: 'Karyawan / Crew',
+    label: 'G01 Â· Karyawan',
   },
 };
 
@@ -121,7 +164,7 @@ function getGradeStyle(grade: number): GradeStyle {
 export default function StrukturOrganisasi() {
   const { user, access } = useAuth();
   const userRole = user?.role ?? 1;
-  const isSuperAdmin = userRole >= 14 || (access?.roleLevels?.some((l) => l >= 14) ?? false);
+  const isSuperAdmin = userRole >= 15 || (access?.roleLevels?.some((l) => l >= 15) ?? false);
 
   // Mode Edit Bagan Pohon: default aktif untuk Superadmin
   const [editMode, setEditMode] = useState(isSuperAdmin);
@@ -274,7 +317,7 @@ export default function StrukturOrganisasi() {
     setFormDept(parentNode?.department || 'HAULING');
     setFormDivision(parentNode?.division || '');
     setFormCompany(parentNode?.company || 'PT. MB');
-    setTargetGrade(parentNode ? Math.max(1, parentNode.grade - 2) : 15);
+    setTargetGrade(parentNode ? Math.max(1, parentNode.grade - 2) : 19);
     setTargetEmployeeNrp('');
     setSyncUserRole(true);
     setActiveModal('create-child');
@@ -479,8 +522,8 @@ export default function StrukturOrganisasi() {
               }}
               title={editMode ? 'Klik untuk langsung mengubah Grade posisi ini' : ''}
             >
-              Grade {node.grade} • {gradeStyle.label}
-              {editMode && <span className="ml-1 opacity-75">⚡</span>}
+              Grade {node.grade} â€¢ {gradeStyle.label}
+              {editMode && <span className="ml-1 opacity-75">âš¡</span>}
             </button>
 
             {node.department && (
@@ -502,7 +545,7 @@ export default function StrukturOrganisasi() {
             </h5>
             {node.division && (
               <small className="text-secondary font-11 d-block mt-1">
-                Divisi: {node.division}
+                Section: {node.division}
               </small>
             )}
           </div>
@@ -614,8 +657,8 @@ export default function StrukturOrganisasi() {
               title={isCollapsed ? 'Buka cabang bawahan' : 'Tutup cabang bawahan'}
             >
               {isCollapsed
-                ? `▶ ${node.children!.length} Bawahan`
-                : `▼ ${node.children!.length} Bawahan`}
+                ? `â–¶ ${node.children!.length} Bawahan`
+                : `â–¼ ${node.children!.length} Bawahan`}
             </button>
           )}
         </div>
@@ -1068,31 +1111,37 @@ export default function StrukturOrganisasi() {
         <div className="d-flex align-items-center justify-content-between flex-wrap">
           <div className="d-flex align-items-center mb-1">
             <span className="font-12 weight-700 text-dark mr-2">
-              <i className="bi bi-lightning-charge-fill text-warning mr-1" /> Tingkatan Grade (Role Level 1–15):
+              <i className="bi bi-lightning-charge-fill text-warning mr-1" /> Tingkatan Grade (G01â€“G19):
             </span>
             <small className="text-muted d-none d-md-inline">
-              Klik <strong>⚡ Grade</strong> pada kartu posisi untuk mengubah level wewenang:
+              Klik <strong>âš¡ Grade</strong> pada kartu posisi untuk mengubah level wewenang:
             </small>
           </div>
 
           <div className="d-flex flex-wrap align-items-center mb-1">
+            <span className="badge badge-pill text-warning mr-1 mb-1" style={{ backgroundColor: '#1a0533' }}>
+              G17â€“G19: Komisaris / Owner
+            </span>
             <span className="badge badge-pill text-white mr-1 mb-1" style={{ backgroundColor: '#582c87' }}>
-              Grade 13-15: Direksi/Superuser
+              G15â€“G16: Direktur / GM
             </span>
             <span className="badge badge-pill badge-primary mr-1 mb-1" style={{ backgroundColor: '#1b00ff' }}>
-              Grade 10-12: GM / Kepala PT
+              G12â€“G14: Manager / Kepala Divisi
             </span>
             <span className="badge badge-pill badge-info mr-1 mb-1" style={{ backgroundColor: '#0284c7' }}>
-              Grade 6-8: Kepala Dept / Project
+              G09â€“G11: PJO / KTT / Kepala Perusahaan
             </span>
-            <span className="badge badge-pill badge-warning text-dark mr-1 mb-1" style={{ backgroundColor: '#f59e0b' }}>
-              Grade 3-5: Koordinator / Admin
+            <span className="badge badge-pill badge-warning text-dark mr-1 mb-1" style={{ backgroundColor: '#d97706' }}>
+              G05â€“G08: Dept / Superintendent / Staff PJO
+            </span>
+            <span className="badge badge-pill badge-success mr-1 mb-1" style={{ backgroundColor: '#65a30d' }}>
+              G03â€“G04: Section / Supervisor
             </span>
             <span className="badge badge-pill badge-success mr-1 mb-1" style={{ backgroundColor: '#10b981' }}>
-              Grade 2: Group Leader
+              G02: Group Leader
             </span>
             <span className="badge badge-pill badge-secondary mr-1 mb-1" style={{ backgroundColor: '#64748b' }}>
-              Grade 1: Pelaksana/Crew
+              G01: Karyawan / Pelaksana
             </span>
           </div>
         </div>
@@ -1113,7 +1162,7 @@ export default function StrukturOrganisasi() {
                 Tabel Jabatan & Manajemen Grade
               </h4>
               <p className="font-12 text-muted mb-0">
-                Ubah tingkatan Grade (Level 1–15) secara langsung melalui dropdown atau kelola pejabat struktural
+                Ubah tingkatan Grade (Level 1â€“15) secara langsung melalui dropdown atau kelola pejabat struktural
               </p>
             </div>
           </div>
@@ -1170,7 +1219,7 @@ export default function StrukturOrganisasi() {
                         className="btn btn-outline-secondary btn-sm"
                         title="Hapus pencarian"
                       >
-                        ✕
+                        âœ•
                       </button>
                     </div>
                   )}
@@ -1186,7 +1235,7 @@ export default function StrukturOrganisasi() {
                     className="custom-select custom-select-sm"
                     style={{ width: 'auto', minWidth: '170px' }}
                   >
-                    <option value="ALL">Semua Grade (1–15)</option>
+                    <option value="ALL">Semua Grade (1â€“15)</option>
                     {grades.map((g) => (
                       <option key={g.level} value={g.level}>
                         Grade {g.level} ({g.name})
@@ -1241,7 +1290,7 @@ export default function StrukturOrganisasi() {
                             </div>
                             {pos.division && (
                               <small className="text-muted d-block">
-                                Divisi: {pos.division}
+                                Section: {pos.division}
                               </small>
                             )}
                           </td>
@@ -1261,7 +1310,7 @@ export default function StrukturOrganisasi() {
                               </div>
                             ) : (
                               <span className="badge badge-light border text-muted font-11">
-                                👑 Puncak (Top Level)
+                                ðŸ‘‘ Puncak (Top Level)
                               </span>
                             )}
                           </td>
@@ -1292,7 +1341,7 @@ export default function StrukturOrganisasi() {
                                   >
                                     {grades.map((g) => (
                                       <option key={g.level} value={g.level}>
-                                        Grade {g.level} — {g.name}
+                                        Grade {g.level} â€” {g.name}
                                       </option>
                                     ))}
                                   </select>
@@ -1423,8 +1472,8 @@ export default function StrukturOrganisasi() {
               } font-11 px-3 py-1`}
             >
               {editMode
-                ? '👑 Mode Edit Aktif: Klik Grade / Pejabat / Tombol [+] pada kartu'
-                : '👁️ Mode Lihat: Hanya-baca'}
+                ? 'ðŸ‘‘ Mode Edit Aktif: Klik Grade / Pejabat / Tombol [+] pada kartu'
+                : 'ðŸ‘ï¸ Mode Lihat: Hanya-baca'}
             </span>
           </div>
         </div>
@@ -1454,7 +1503,7 @@ export default function StrukturOrganisasi() {
         ) : (
           /* Empty state */
           <div className="text-center py-5 text-muted">
-            <div className="font-30 mb-2">🌳</div>
+            <div className="font-30 mb-2">ðŸŒ³</div>
             <p className="font-14 weight-600">
               Belum ada posisi pada bagan pohon yang sesuai dengan filter.
             </p>
@@ -1509,7 +1558,7 @@ export default function StrukturOrganisasi() {
 
                   <div className="form-group">
                     <label className="weight-600 font-12">
-                      Pilih Tingkat Grade (Role Level 1–15):
+                      Pilih Tingkat Grade (Role Level 1â€“15):
                     </label>
                     <select
                       value={targetGrade}
@@ -1761,7 +1810,7 @@ export default function StrukturOrganisasi() {
                       />
                     </div>
                     <div className="form-group col-md-6">
-                      <label className="weight-600 font-12">Divisi (Opsional)</label>
+                      <label className="weight-600 font-12">Section <small className="text-muted font-10">(Opsional — mis. SECTION-A, HSE-SECTION)</small></label>
                       <input
                         type="text"
                         value={formDivision}
@@ -1773,7 +1822,7 @@ export default function StrukturOrganisasi() {
 
                   <div className="form-group">
                     <label className="weight-600 font-12">
-                      Tentukan Grade Posisi Baru (Level 1–15):
+                      Tentukan Grade Posisi Baru (Level 1â€“15):
                     </label>
                     <select
                       value={targetGrade}
@@ -1899,7 +1948,7 @@ export default function StrukturOrganisasi() {
                       />
                     </div>
                     <div className="form-group col-md-6">
-                      <label className="weight-600 font-12">Divisi</label>
+                      <label className="weight-600 font-12">Section <small className="text-muted font-10">(mis. SECTION-A, HSE-SECTION)</small></label>
                       <input
                         type="text"
                         value={formDivision}
@@ -1911,7 +1960,7 @@ export default function StrukturOrganisasi() {
 
                   <div className="form-group">
                     <label className="weight-600 font-12">
-                      Grade Jabatan (Level 1–15):
+                      Grade Jabatan (Level 1â€“15):
                     </label>
                     <select
                       value={targetGrade}
@@ -2021,3 +2070,4 @@ export default function StrukturOrganisasi() {
     </div>
   );
 }
+
