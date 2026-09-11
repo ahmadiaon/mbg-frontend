@@ -689,6 +689,14 @@ export interface OrgEmployeeLookupItem {
   currentRole: number;
 }
 
+export interface MasterJabatanItem {
+  recordCode: string;
+  title: string;
+  grade: number;
+  department: string;
+  employeeCount: number;
+}
+
 export const organizationApi = {
   tree: (params?: { company?: string; department?: string; search?: string }) => {
     const q = new URLSearchParams();
@@ -727,6 +735,33 @@ export const organizationApi = {
       method: 'POST',
       body: JSON.stringify({ employeeNrp, syncUserRole }),
     }),
+  masterJabatan: (params?: { search?: string }) => {
+    const q = new URLSearchParams();
+    if (params?.search) q.set('search', params.search);
+    const qs = q.toString();
+    return api<MasterJabatanItem[]>(`/organization/master-jabatan${qs ? `?${qs}` : ''}`);
+  },
+  updateMasterJabatanGrade: (recordCode: string, grade: number) =>
+    api<{ success: boolean; recordCode: string; grade: number }>(
+      `/organization/master-jabatan/${encodeURIComponent(recordCode)}/grade`,
+      {
+        method: 'PUT',
+        body: JSON.stringify({ grade }),
+      },
+    ),
+  batchUpdateMasterJabatanGrades: (items: Array<{ recordCode: string; grade: number }>) =>
+    api<Array<{ recordCode: string; grade?: number; error?: string }>>(
+      '/organization/master-jabatan/batch-grades',
+      {
+        method: 'POST',
+        body: JSON.stringify({ items }),
+      },
+    ),
+  applyMasterJabatanPreset: () =>
+    api<{ message: string; updatedCount: number; totalJabatan: number }>(
+      '/organization/master-jabatan/apply-preset',
+      { method: 'POST' },
+    ),
 };
 
 

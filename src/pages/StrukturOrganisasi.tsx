@@ -2,10 +2,12 @@ import { useEffect, useMemo, useState } from 'react';
 import { useAuth } from '../auth';
 import {
   organizationApi,
+  type MasterJabatanItem,
   type OrgEmployeeLookupItem,
   type OrgGradeItem,
   type OrgNodeItem,
 } from '../api';
+import GradeKanbanBoard from '../components/GradeKanbanBoard';
 
 interface GradeStyle {
   accentColor: string;
@@ -192,6 +194,10 @@ export default function StrukturOrganisasi() {
   const [grades, setGrades] = useState<OrgGradeItem[]>([]);
   const [employees, setEmployees] = useState<OrgEmployeeLookupItem[]>([]);
 
+  // Tab Utama: 'kanban' (Kelola Grade 285 Jabatan) vs 'tree' (Bagan Pohon)
+  const [activeMainTab, setActiveMainTab] = useState<'kanban' | 'tree'>('kanban');
+  const [masterJabatan, setMasterJabatan] = useState<MasterJabatanItem[]>([]);
+
   // Mapping nama Grade dinamis dari EAV table GRADE
   const gradeNameMap = useMemo(() => {
     const map = new Map<number, string>();
@@ -234,7 +240,7 @@ export default function StrukturOrganisasi() {
     setLoading(true);
     setError('');
     try {
-      const [treeRes, gradesRes, employeesRes] = await Promise.all([
+      const [treeRes, gradesRes, employeesRes, masterRes] = await Promise.all([
         organizationApi.tree({
           company: companyFilter !== 'ALL' ? companyFilter : undefined,
           department: deptFilter !== 'ALL' ? deptFilter : undefined,
@@ -242,16 +248,75 @@ export default function StrukturOrganisasi() {
         }),
         organizationApi.grades().catch(() => []),
         organizationApi.employeesLookup().catch(() => []),
+        organizationApi.masterJabatan().catch(() => []),
       ]);
 
       setTreeRoots(treeRes.roots || []);
       setFlatPositions(treeRes.flatList || []);
       setGrades(gradesRes);
       setEmployees(employeesRes);
+      setMasterJabatan(masterRes || []);
     } catch (e: any) {
       setError(e?.message || 'Gagal memuat struktur organisasi');
     } finally {
       setLoading(false);
+    }
+  }
+
+  // Handler memindahkan satu master jabatan (dari drag & drop atau dropdown quick move)
+  async function handleMoveMasterGrade(item: MasterJabatanItem, targetGrade: number) {
+    const prevGrade = item.grade;
+    setMasterJabatan((prev) =>
+      prev.map((p) => (p.recordCode === item.recordCode ? { ...p, grade: targetGrade } : p))
+    );
+
+    try {
+      await organizationApi.updateMasterJabatanGrade(item.recordCode, targetGrade);
+      notify(
+        `✅ Jabatan "${item.title}" dipindahkan ke Grade G${
+          targetGrade < 10 ? '0' + targetGrade : targetGrade
+        } (${gradeNameMap.get(targetGrade) || ''})`
+      );
+      setFlatPositions((prev) =>
+        prev.map((p) => (p.title === item.title ? { ...p, grade: targetGrade } : p))
+      );
+    } catch (err: any) {
+      setMasterJabatan((prev) =>
+        prev.map((p) => (p.recordCode === item.recordCode ? { ...p, grade: prevGrade } : p))
+      );
+      alert('Gagal memindahkan grade: ' + (err?.message || 'Error'));
+    }
+  }
+
+  // Handler memindahkan banyak master jabatan sekaligus (bulk)
+  async function handleBulkMoveMasterGrade(items: Array<{ recordCode: string; grade: number }>) {
+    const gradeMapUpdate = new Map<string, number>();
+    items.forEach((it) => gradeMapUpdate.set(it.recordCode, it.grade));
+
+    setMasterJabatan((prev) =>
+      prev.map((p) =>
+        gradeMapUpdate.has(p.recordCode) ? { ...p, grade: gradeMapUpdate.get(p.recordCode)! } : p
+      )
+    );
+
+    try {
+      await organizationApi.batchUpdateMasterJabatanGrades(items);
+      notify(`✅ Berhasil memindahkan ${items.length} jabatan`);
+      await loadData();
+    } catch (err: any) {
+      alert('Gagal memindahkan sebagian jabatan: ' + (err?.message || 'Error'));
+      await loadData();
+    }
+  }
+
+  // Handler menerapkan Rekomendasi Pintar (Auto-Map PRD)
+  async function handleApplyMasterPreset() {
+    try {
+      const res = await organizationApi.applyMasterJabatanPreset();
+      notify(`🚀 ${res.message}`);
+      await loadData();
+    } catch (err: any) {
+      alert('Gagal menerapkan rekomendasi PRD: ' + (err?.message || 'Error'));
     }
   }
 
@@ -1033,7 +1098,48 @@ export default function StrukturOrganisasi() {
         </div>
       </div>
 
-      {/* FILTER & SEARCH CARD (DESKAPP CARD-BOX) */}
+      {/* NAVIGASI UTAMA TAMPILAN: PAPAN KELOLA GRADE vs BAGAN POHON */}
+      <div className="card-box pd-10 mb-20 shadow-sm">
+        <ul className="nav nav-pills customtab">
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link ${activeMainTab === 'kanban' ? 'active font-weight-bold' : ''}`}
+              onClick={() => setActiveMainTab('kanban')}
+            >
+              <i className="bi bi-kanban mr-2" />
+              Papan & Tabel Kelola Grade Jabatan
+              <span className="badge badge-light ml-2">{masterJabatan.length} Jabatan</span>
+            </button>
+          </li>
+          <li className="nav-item">
+            <button
+              type="button"
+              className={`nav-link ${activeMainTab === 'tree' ? 'active font-weight-bold' : ''}`}
+              onClick={() => setActiveMainTab('tree')}
+            >
+              <i className="bi bi-diagram-3 mr-2" />
+              Bagan Pohon Struktur Organisasi
+              <span className="badge badge-secondary ml-2">{flatPositions.length} Terpasang</span>
+            </button>
+          </li>
+        </ul>
+      </div>
+
+      {activeMainTab === 'kanban' ? (
+        <GradeKanbanBoard
+          masterJabatan={masterJabatan}
+          grades={grades}
+          gradeStyles={GRADE_STYLES}
+          isSuperAdmin={isSuperAdmin}
+          onMoveGrade={handleMoveMasterGrade}
+          onBulkMoveGrade={handleBulkMoveMasterGrade}
+          onApplyPreset={handleApplyMasterPreset}
+          onRefresh={loadData}
+        />
+      ) : (
+        <>
+          {/* FILTER & SEARCH CARD (DESKAPP CARD-BOX) */}
       <div className="card-box pd-15 mb-20">
         <div className="row align-items-center">
           <div className="col-lg-8 col-md-12">
@@ -1535,6 +1641,8 @@ export default function StrukturOrganisasi() {
           </div>
         )}
       </div>
+      </>
+      )}
 
       {/* ========================================================================= */}
       {/* BOOTSTRAP / DESKAPP MODALS                                                */}
