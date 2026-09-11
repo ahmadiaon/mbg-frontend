@@ -150,15 +150,24 @@ const GRADE_STYLES: Record<number, GradeStyle> = {
   },
 };
 
-function getGradeStyle(grade: number): GradeStyle {
-  return (
+function getGradeStyle(grade: number, dynamicName?: string): GradeStyle {
+  const base =
     GRADE_STYLES[grade] || {
       accentColor: '#6c757d',
       badgeClass: 'badge badge-pill badge-secondary',
       badgeStyle: { backgroundColor: '#6c757d', color: '#ffffff' },
       label: `Grade ${grade}`,
-    }
-  );
+    };
+
+  if (dynamicName) {
+    const code = grade < 10 ? `G0${grade}` : `G${grade}`;
+    return {
+      ...base,
+      label: `${code} · ${dynamicName}`,
+    };
+  }
+
+  return base;
 }
 
 export default function StrukturOrganisasi() {
@@ -182,6 +191,13 @@ export default function StrukturOrganisasi() {
   const [flatPositions, setFlatPositions] = useState<OrgNodeItem[]>([]);
   const [grades, setGrades] = useState<OrgGradeItem[]>([]);
   const [employees, setEmployees] = useState<OrgEmployeeLookupItem[]>([]);
+
+  // Mapping nama Grade dinamis dari EAV table GRADE
+  const gradeNameMap = useMemo(() => {
+    const map = new Map<number, string>();
+    grades.forEach((g) => map.set(g.level, g.name));
+    return map;
+  }, [grades]);
 
   // Filters
   const [companyFilter, setCompanyFilter] = useState('ALL');
@@ -492,7 +508,7 @@ export default function StrukturOrganisasi() {
   function renderTreeNode(node: OrgNodeItem, level = 0) {
     const hasChildren = node.children && node.children.length > 0;
     const isCollapsed = collapsedNodes.has(node.id);
-    const gradeStyle = getGradeStyle(node.grade);
+    const gradeStyle = getGradeStyle(node.grade, gradeNameMap.get(node.grade));
     const isMatch = matchesSearch(node);
 
     return (
@@ -1276,7 +1292,7 @@ export default function StrukturOrganisasi() {
                       const parentNode = pos.parentId
                         ? flatPositions.find((item) => item.id === pos.parentId)
                         : null;
-                      const gStyle = getGradeStyle(pos.grade);
+                      const gStyle = getGradeStyle(pos.grade, gradeNameMap.get(pos.grade));
                       const isBusy = inlineGradeBusy === pos.id;
 
                       return (
