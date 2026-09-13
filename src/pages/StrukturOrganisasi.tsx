@@ -175,7 +175,7 @@ function getGradeStyle(grade: number, dynamicName?: string): GradeStyle {
 export default function StrukturOrganisasi() {
   const { user, access } = useAuth();
   const userRole = user?.role ?? 1;
-  const isSuperAdmin = userRole >= 15 || (access?.roleLevels?.some((l) => l >= 15) ?? false);
+  const isSuperAdmin = userRole >= 13 || (access?.roleLevels?.some((l) => l >= 13) ?? false);
 
   // Mode Edit Bagan Pohon: default aktif untuk Superadmin
   const [editMode, setEditMode] = useState(isSuperAdmin);

@@ -1,24 +1,23 @@
-# MBG Frontend (React)
+﻿# MBG-FRONTEND — AGENT & DEVELOPER CONTEXT
 
-## Stack
-React 19 + Vite + TypeScript + React Router. Tanpa jQuery.
+## 📌 Deskripsi Project
+Frontend Single Page Application (SPA) untuk ERP MBG v2.0 dibangun menggunakan React 19, TypeScript, Vite, dan template DeskApp Admin.
 
-## Tema
-Template **deskapp** (Bootstrap 4) di `public/deskapp/`. Tema terang, sidebar gelap `#142127`, header putih, ikon `dw-`/`bi-`. Override ada di `src/index.css`.
+## ⚙️ Environment & Proxy
+- **Port**: `5173`
+- **Proxy Vite (`vite.config.ts`)**:
+  - `/api` $\rightarrow$ `http://localhost:3000`
+  - `/assets` $\rightarrow$ `http://localhost:3000`
+- **Build**: `npm run build` (menghasilkan file statis di `dist/`)
 
-## Struktur
-- `src/layout/` — Layout, Sidebar, Navbar, `menu.ts`.
-- `src/pages/` — Login, Authentication, Home, MySlip.
-- `src/auth.tsx` — AuthProvider (token + user).
-- `src/api.ts` — fetch helper + endpoint API.
+## 🧱 Halaman & Fitur Utama
+1. **`src/pages/StrukturOrganisasi.tsx`**:
+   - Tab 1: **Kanban Board Grade (G01–G19)**: Visualisasi jabatan terkelompok per grade, drag-and-drop / tabel interaktif.
+   - Tab 2: **Bagan Pohon Organisasi**: Visualisasi hierarki pelaporan dari Direksi puncak hingga pelaksana lapangan.
+   - Hak Akses: Tombol edit grade hanya muncul untuk `isSuperAdmin` (Grade $\ge$ 13).
+2. **`src/pages/OtorisasiAdmin.tsx`**: Manajemen Role, Feature Access Matrix, dan penugasan override pengguna.
+3. **`src/pages/DatabaseEav.tsx`**: Visualisasi data EAV dinamis.
 
-## Proxy
-Vite proxy `/api` → `http://localhost:3000` (lihat `vite.config.ts`).
-
-## Perintah
-- dev: `npm.cmd run dev` (port 5173)
-- build: `npm.cmd run build`
-
-## Aturan
-- Komentar Bahasa Indonesia.
-- UI ikuti template deskapp.
+## 🛠️ Script Penting
+- `npm run dev`: Menjalankan Vite dev server di port 5173.
+- `npm run build`: Type-checking (`tsc -b`) dan build produksi Vite.
